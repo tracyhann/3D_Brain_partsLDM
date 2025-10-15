@@ -24,3 +24,15 @@ python scripts/train_3d_ldm_from_parts.py \
   --ae_finetune_ckpt models/autoencoder.pt --ae_decoder_only \
   --ldm_use_cond \
   --batch 1 --workers 0
+
+
+
+## To avoid OOM issue
+
+python scripts/train_3d_ldm_from_parts.py \
+  --csv caud_puta_data.csv \
+  --stage both \
+  --ae_finetune_ckpt models/autoencoder.pt --ae_decoder_only \
+  --ldm_use_cond \
+  --batch 1 --workers 0 \
+  --spacing 2,2,2 --size 128,160,128
