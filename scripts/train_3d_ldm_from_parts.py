@@ -23,7 +23,7 @@ from monai.transforms import (
 )
 from monai.transforms import MapTransform, Compose, LoadImaged, EnsureChannelFirstd, Orientationd, SpatialCropd, EnsureTyped
 from generative.networks.nets import AutoencoderKL, DiffusionModelUNet
-from generative.networks.schedulers import DDPMScheduler
+from generative.networks.schedulers import DDPMScheduler, DDIMScheduler
 from monai.losses import PerceptualLoss
 
 
@@ -69,11 +69,14 @@ class BuildCondVec(MapTransform):
    - If 'seg' exists, computes part_vol_norm using 'target_label' (if provided) else seg>0 (brain).
    - If no 'seg', sets part_vol_norm=0.0 (still returns a 3-dim cond vector).
    """
-   def __init__(self, age_min: float, age_max: float):
+   def __init__(self, age_min: float, age_max: float, vol_min: float, vol_max: float):
        super().__init__(keys=("image",))
        self.age_min = float(age_min)
        self.age_max = float(age_max)
        self.age_den = max(self.age_max - self.age_min, 1e-6)
+       self.pv_min = float(vol_min)
+       self.pv_max = float(vol_max)
+       self.pv_den = max(self.pv_max - self.pv_min, 1e-6)
 
 
    def __call__(self, d: Dict[str, Any]) -> Dict[str, Any]:
@@ -83,7 +86,8 @@ class BuildCondVec(MapTransform):
        age = float(d["age"])
        pv = float(d['vol'])
        age_norm = float(np.clip((age - self.age_min) / self.age_den, 0.0, 1.0))
-       d["cond"] = torch.tensor([pv, sex, age_norm], dtype=torch.float32)
+       pv_norm = float(np.clip((pv - self.pv_min) / self.pv_den, 0.0, 1.0))
+       d["cond"] = torch.tensor([pv_norm, sex, age_norm], dtype=torch.float32)
        return d
 
 
@@ -126,6 +130,7 @@ def make_loaders_from_csv(
            "image": str(Path(r["image"]).expanduser()),
            "sex": _sex01(r["sex"]),
            "age": float(r["age"]),
+           "vol": float(r['vol'])
        }
        if has_seg and not pd.isna(r["seg"]):
            it["seg"] = str(Path(r["seg"]).expanduser())
@@ -139,6 +144,10 @@ def make_loaders_from_csv(
    age_min = float(np.percentile(ages, 1))
    age_max = float(np.percentile(ages, 99))
 
+   vols = np.array([it["vol"] for it in items], float)
+   vol_min = float(np.percentile(vols, 1))
+   vol_max = float(np.percentile(vols, 99))
+
 
    tx = Compose([
        LoadImaged(keys=["image"]),
@@ -149,6 +158,7 @@ def make_loaders_from_csv(
        FindNonBGCenter(key="image", bg=None, tol=0.0),
        CenterSpatialCropd(keys=["image"], roi_size=size),
        EnsureTyped(keys=["image"]),
+       BuildCondVec(age_min=age_min, age_max=age_max, vol_min=vol_min, vol_max=vol_max)
    ])
 
 
@@ -171,6 +181,7 @@ def make_loaders_from_csv(
 
    print(f"[data] {len(items)} items | train {len(train_ds)} | val {len(val_ds)}")
    print(f"[data] age_norm bounds: [{age_min:.1f}, {age_max:.1f}] → scaled to [0,1]")
+   print(f"[data] vol_norm bounds: [{vol_min:.1f}, {vol_max:.1f}] → scaled to [0,1]")
    return tl, vl
 
 
@@ -287,7 +298,7 @@ def train_ldm(
    lr: float = 1e-4,
    weight_decay: float = 1e-5,
    latent_channels: int = 3,
-   unet_channels=(128, 256, 512, 512),
+   unet_channels=(128, 256, 512),
    use_cond: bool = True,     # if True, concat [pv, sex, age] (tiled) to the latent channels
    resume_unet: str = "",
 ):
@@ -299,13 +310,12 @@ def train_ldm(
        spatial_dims=3,
        in_channels=1, out_channels=1,
        latent_channels=latent_channels,
-       num_channels=(64, 128, 256, 512),
-       factors=(1, 2, 2, 2),
-       num_res_blocks=2, norm_num_groups=32, norm_eps=1e-6,
+       num_channels=tuple((64, 128, 128, 128)),
+       num_res_blocks=2, norm_num_groups=32, norm_eps=1e-06,
        attention_levels=(False, False, False, False),
        with_encoder_nonlocal_attn=False,
        with_decoder_nonlocal_attn=False,
-   ).to(device).eval()
+   ).to(device) .eval()
    ae.load_state_dict(torch.load(ae_ckpt, map_location=device))
    for p in ae.parameters(): p.requires_grad = False
 
@@ -315,13 +325,15 @@ def train_ldm(
 
 
    # Latent Diffusion UNet (epsilon prediction)
+
+
    unet = DiffusionModelUNet(
        spatial_dims=3,
        in_channels=in_ch,
        out_channels=latent_channels,
        num_res_blocks=2,
        num_channels=tuple(unet_channels),
-       attention_levels=(False, True, True, True),
+       attention_levels=(False, True, True),
        num_head_channels=64,
    ).to(device)
 
@@ -338,7 +350,7 @@ def train_ldm(
 
 
    # Scheduler
-   sched = DDIMScheduler(num_train_timesteps=1000, schedule="linear")
+   sched = DDIMScheduler(num_train_timesteps=1000, schedule="cosine", clip_sample=True)
 
 
    os.makedirs(outdir, exist_ok=True)
@@ -430,7 +442,7 @@ def main():
    ap.add_argument("--ldm_epochs", type=int, default=100)
    ap.add_argument("--ldm_lr", type=float, default=1e-4)
    ap.add_argument("--ldm_use_cond", action="store_true", help="Use [part_vol_norm,sex,age] conditioning")
-   ap.add_argument("--ldm_channels", default="128,256,512,512")
+   ap.add_argument("--ldm_channels", default="128,256,512")
    ap.add_argument("--ldm_resume", default="", help="Resume UNet weights (optional)")
 
 
