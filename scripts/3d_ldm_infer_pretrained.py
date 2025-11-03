@@ -17,7 +17,7 @@ import os
 # ----------------------------
 def save_nii(vol: torch.Tensor, path: Path):
     arr = vol.squeeze(0).squeeze(0).detach().cpu().numpy()  # [D,H,W]
-    arr = np.nan_to_num(arr, nan=0.0, posinf=1.0, neginf=0.0)
+    #arr = np.nan_to_num(arr, nan=0.0, posinf=1.0, neginf=0.0)
     nib.save(nib.Nifti1Image(arr, np.eye(4)), str(path))
 
 def save_mid_slices(vol: torch.Tensor, stem: str, outdir: Path):
@@ -71,7 +71,7 @@ def parse_cond(s: Optional[str]) -> Optional[torch.Tensor]:
     if not s:
         return None
     vals = [float(x) for x in s.split(",")]
-    if len(vals) != 3:
+    if len(vals) != 4:
         raise ValueError("--cond must be 'vol_norm,sex,age_norm' (3 numbers)")
     return torch.tensor(vals, dtype=torch.float32)[None, :]  # [1,3]
 
@@ -79,7 +79,7 @@ def tile_cond(cond_vec: torch.Tensor, z: torch.Tensor) -> torch.Tensor:
     # cond_vec [B,3] -> [B,3,d,h,w]
     B, _, d, h, w = z.shape
     c = cond_vec[:, :, None, None, None]
-    return c.expand(B, 3, d, h, w)
+    return c.expand(B, 4, d, h, w)
 
 # ----------------------------
 # Timesteps / DDIM helpers
@@ -126,7 +126,7 @@ def main():
 
     # Conditioning + CFG
     ap.add_argument("--use_cond", action="store_true", help="UNet in_ch = latent_ch + 3")
-    ap.add_argument("--cond", default="0.0,0.0,0.0", help="vol_norm,sex,age_norm in [0,1], e.g. 0.4,1,0.35")
+    ap.add_argument("--cond", default="0.0,0.0,0.0,0.0", help="vol_norm,sex,age_norm in [0,1], e.g. 0.4,1,0.35")
     ap.add_argument("--cfg_scale", type=float, default=1.0, help=">1 enables classifier-free guidance")
 
     args = ap.parse_args()
@@ -149,7 +149,7 @@ def main():
     state = state.get("state_dict", state)
     ae.load_state_dict(state, strict=False)
 
-    cond_dim = 3 if args.use_cond else 0
+    cond_dim = 4 if args.use_cond else 0
     in_ch = args.latent_ch + cond_dim
     attn_lvls = (False, True, True) if len(unet_channels) == 3 else (False, True, True, True)
 
@@ -172,7 +172,14 @@ def main():
     print(f"[shape] latent: {tuple(z_shape)} for image size {size}")
 
     # --- Scheduler ---
-    sched = DDIMScheduler(num_train_timesteps=1000, schedule="cosine", clip_sample=True)
+    #sched = DDIMScheduler(num_train_timesteps=1000, schedule="cosine", clip_sample=True)
+    sched = DDIMScheduler(
+        beta_start=0.0015,
+        beta_end=0.0205,
+        num_train_timesteps=1000,
+        schedule="scaled_linear_beta",
+        clip_sample=False
+    )
     sched.set_timesteps(args.steps)
 
     # --- Conditioning ---
@@ -187,6 +194,7 @@ def main():
     for i in range(args.num):
         g = torch.Generator(device=device).manual_seed(args.seed + i)
         z = args.z_scale * torch.randn(1, C, zd, zh, zw, device=device, generator=g)
+        z = torch.randn((1, 3, 20, 28, 20)).to(device)
 
         with torch.no_grad():
             for t in sched.timesteps:
@@ -219,10 +227,10 @@ def main():
                 
 
             x = ae_decode_latents(ae, z)
-            x = torch.nan_to_num(x, nan=0.0, posinf=1.0, neginf=0.0).clamp(0, 1)
+            #x = torch.nan_to_num(x, nan=0.0, posinf=1.0, neginf=0.0).clamp(0, 1)
 
         # Stats to diagnose black outputs
-        print(f"[stats] z mean/std: {z.mean().item():.4f} / {z.std().item():.4f} | "
+        print(f"[stats] z mean/std/min/max: {z.mean().item():.4f} / {z.std().item():.4f} / {z.min().item():.4f} / {z.max().item():.4f}| "
               f"x min/max/mean: {x.min().item():.4f} / {x.max().item():.4f} / {x.mean().item():.4f}")
 
         stem = f"sample_{i:03d}"
