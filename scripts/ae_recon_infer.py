@@ -23,6 +23,10 @@ from generative.networks.nets import AutoencoderKL
 
 set_track_meta(False)
 
+import torch.multiprocessing as mp
+mp.set_sharing_strategy("file_system")  # use /tmp instead of /dev/shm
+
+
 # ----------------------------
 # Utilities
 # ----------------------------
@@ -290,7 +294,7 @@ def main():
 
     with torch.no_grad():
         for i, batch in enumerate(tqdm(train_loader, desc="[AE-RECON]")):
-            if i >= 50:
+            if i <= 4:
                 x = batch["image"].to(device)      # [B,1,D,H,W] in [0,1] (given your pipeline)
                 recon = ae_forward_recon(ae, x)    # [B,1,D,H,W]
 

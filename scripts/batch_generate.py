@@ -4,8 +4,8 @@ batch_generate_unique.py
 Generate N UNIQUE conditioning tuples for MONAI Brain-LDM and run the bundle once per tuple.
 
 Example:
-  python batch_generate_unique.py \
-    --n 100 --outdir /mnt/data/brain_synth --seed 123 \
+  python scripts/batch_generate.py \
+    --n 1 --outdir /mnt/data/brain_synth/1029 --seed 123 \
     --config configs/inference.json --name-prefix ldm --steps 50 --load-old 0
 
 Notes:
@@ -85,11 +85,11 @@ def main():
     #for i, (g,a,v,b) in enumerate(conds):
     for i, _ in enumerate(conds):
         #CONTROL
-        bs = [0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8]
+        bs = [0.]
         g = 0
-        a = 0.4
-        v = 0.3
-        b = bs[i]
+        a = 0.
+        v = 0.
+        b = 0.
         cmd = [
             "python", "-m", "monai.bundle", "run",
             "--config_file", args.config,
