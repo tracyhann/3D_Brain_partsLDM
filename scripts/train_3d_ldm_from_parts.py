@@ -14,6 +14,7 @@ import nibabel as nib
 import torch
 from torch.utils.data import DataLoader
 from tqdm import tqdm
+import math
 
 
 from monai.data import Dataset, set_track_meta
@@ -187,6 +188,24 @@ def make_loaders_from_csv(
 
 
 
+def psnr(x: torch.Tensor, y: torch.Tensor, eps: float = 1e-8) -> float:
+    # assume normalized to [0,1]
+    mse = torch.mean((x - y) ** 2).item()
+    if mse <= eps:
+        return 99.0
+    return 10.0 * math.log10(1.0 / mse)
+
+def ssim_3d(x: torch.Tensor, y: torch.Tensor, eps: float = 1e-8) -> float:
+    # simple global SSIM surrogate (not windowed); fine for quick sanity checks
+    mu_x, mu_y = x.mean(), y.mean()
+    var_x, var_y = x.var(unbiased=False), y.var(unbiased=False)
+    cov_xy = ((x - mu_x) * (y - mu_y)).mean()
+    c1, c2 = 0.01 ** 2, 0.03 ** 2
+    num = (2 * mu_x * mu_y + c1) * (2 * cov_xy + c2)
+    den = (mu_x ** 2 + mu_y ** 2 + c1) * (var_x + var_y + c2)
+    return (num / (den + eps)).item()
+
+
 # ------------------------
 # Stage A: AutoencoderKL
 # ------------------------
@@ -203,6 +222,7 @@ def train_autoencoder(
    lpips_weight: float = 0.1,
    finetune_ckpt: str = "",
    finetune_decoder_only: bool = False,
+   logfile: str = "",
 ):
    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
    ae = AutoencoderKL(
@@ -241,42 +261,59 @@ def train_autoencoder(
    best = 1e9
    scaler = torch.cuda.amp.GradScaler(enabled=(device.type == "cuda"))
 
-
+   from torch.profiler import profile, ProfilerActivity, record_function
+   profiled = False
    for epoch in range(num_epochs):
        ae.train(); tr = 0.0
+       psnr_sum, ssim_sum = 0.0, 0.0
        pbar = tqdm(train_loader, desc=f"[AE] epoch {epoch+1}/{num_epochs}")
        for b in pbar:
-           x = b["image"].to(device)  # [B,1,D,H,W] in [0,1]
+            x = b["image"].to(device)  # [B,1,D,H,W] in [0,1]
+            with torch.cuda.amp.autocast(enabled=(device.type == "cuda")):
+                recon, mu, logvar = ae(x)
+                loss_rec = l1(recon, x) + lpips_weight * lpips(recon, x)
+                loss_kl = kl_weight * torch.mean(mu**2 + torch.exp(logvar) - logvar - 1)
+                loss = loss_rec + loss_kl
+
+                xr = recon.clamp(0, 1)
+                xr = recon
+                xx = x.clamp(0, 1)
+                xx = x
+                psnr_sum += psnr(xr, xx)
+                ssim_sum += ssim_3d(xr, xx)
 
 
-           with torch.cuda.amp.autocast(enabled=(device.type == "cuda")):
-               recon, mu, logvar = ae(x)
-               loss_rec = l1(recon, x) + lpips_weight * lpips(recon, x)
-               loss_kl = kl_weight * torch.mean(mu**2 + torch.exp(logvar) - logvar - 1)
-               loss = loss_rec + loss_kl
+            opt.zero_grad(set_to_none=True)
+            scaler.scale(loss).backward()
+            scaler.step(opt)
+            scaler.update()
 
 
-           opt.zero_grad(set_to_none=True)
-           scaler.scale(loss).backward()
-           scaler.step(opt)
-           scaler.update()
-
-
-           tr += loss.item()
-           pbar.set_postfix(loss=f"{loss.item():.4f}")
+            tr += loss.item()
+            pbar.set_postfix(loss=f"{loss.item():.4f}")
 
 
        # quick val (L1)
        ae.eval(); vl = 0.0; n=0
+       v_psnr_sum, v_ssim_sum = 0, 0
        with torch.no_grad():
            for b in val_loader:
                x = b["image"].to(device)
                recon, _, _ = ae(x)
                vl += l1(recon, x).item(); n += 1
+               xr = recon.clamp(0, 1)
+               xr = recon
+               xx = x.clamp(0, 1)
+               xx = x
+               v_psnr_sum += psnr(xr, xx)
+               v_ssim_sum += ssim_3d(xr, xx)
        vl /= max(n, 1)
 
 
-       print(f"[AE] train {(tr/len(train_loader)):.4f} | val {vl:.4f}")
+       epoch_report = f"\nepoch {epoch+1}/{num_epochs} | train batches {len(train_loader)} | train loss {(tr/len(train_loader)):.4f} | train PSNR {(psnr_sum/len(train_loader)):.4f} | train SSIM {(ssim_sum/len(train_loader)):.4f} | val batches {len(val_loader)} | val loss {vl:.4f} | val PSNR {(v_psnr_sum/len(val_loader)):.4f} | val SSIM {(v_ssim_sum/len(val_loader)):.4f}\n"
+       print(f"[AE] {epoch_report}")
+       with open(logfile, "a", encoding="utf-8") as f:
+           f.write(epoch_report)
        torch.save(ae.state_dict(), os.path.join(outdir, "ae_last.pt"))
        if vl < best:
            best = vl
@@ -301,6 +338,7 @@ def train_ldm(
    unet_channels=(128, 256, 512),
    use_cond: bool = True,     # if True, concat [pv, sex, age] (tiled) to the latent channels
    resume_unet: str = "",
+   logfile: str = "",
 ):
    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -365,6 +403,7 @@ def train_ldm(
 
    for epoch in range(num_epochs):
        unet.train(); tr = 0.0
+       psnr_sum, ssim_sum = 0, 0
        pbar = tqdm(train_loader, desc=f"[LDM] epoch {epoch+1}/{num_epochs}")
        for b in pbar:
            x = b["image"].to(device)           # [B,1,D,H,W]
@@ -389,6 +428,15 @@ def train_ldm(
            eps_hat = unet(z_in, t)
            loss = mse(eps_hat, noise)
 
+           x_hat = ae.decode_stage_2_outputs(z_in) if hasattr(ae, "decode_stage_2_outputs") else ae.decode(z_in)
+           xr_hat = x_hat.clamp(0, 1)
+           xr_hat = x_hat
+           xx = x.clamp(0,1)
+           xx = x
+           psnr_sum += psnr(xr_hat, xx)
+           ssim_sum += ssim_3d(xr_hat, xx)
+
+
 
            opt.zero_grad(set_to_none=True)
            loss.backward()
@@ -399,7 +447,9 @@ def train_ldm(
            pbar.set_postfix(loss=f"{loss.item():.4f}")
 
 
-       print(f"[LDM] train {(tr/len(train_loader)):.4f}")
+       print(f"[LDM] train {(tr/len(train_loader)):.4f} PSNR {(psnr_sum/len(train_loader)):.4f} SSIM {(ssim_sum/len(train_loader)):.4f}")
+       with open(logfile, "a", encoding="utf-8") as f:
+           f.write(f"epoch {epoch+1}/{num_epochs} | train batches {len(train_loader)} | train {(tr/len(train_loader)):.4f} | PSNR {(psnr_sum/len(train_loader)):.4f} SSIM {(ssim_sum/len(train_loader)):.4f}\n")
        torch.save(unet.state_dict(), os.path.join(outdir, "ldm_last.pt"))
        if (epoch + 1) % 10 == 0:
            torch.save(unet.state_dict(), os.path.join(outdir, f"ldm_ep{epoch+1}.pt"))
@@ -451,6 +501,20 @@ def main():
 
    args = ap.parse_args()
 
+   from datetime import datetime
+   import json
+   experiment_dir = os.path.join(args.outdir, f"run_{datetime.now().strftime('%Y%m%d_%H%M%S')}")
+   os.makedirs(experiment_dir, exist_ok=True)
+   args.outdir = experiment_dir
+
+   # argparse Namespace -> dict
+   cfg = vars(args).copy()
+
+   # Make non-JSON types serializable (e.g., tuples)
+   for k,v in list(cfg.items()):
+       if isinstance(v, tuple): cfg[k] = list(v)
+   with open(os.path.join(args.outdir, 'args.json'), "w", encoding="utf-8") as f:
+       json.dump(cfg, f, indent=2, sort_keys=True)
 
    spacing = tuple(float(x) for x in args.spacing.split(","))
    size    = tuple(int(x)   for x in args.size.split(","))
@@ -476,6 +540,7 @@ def main():
            latent_channels=args.ae_latent_ch, num_channels=ae_channels,
            kl_weight=args.ae_kl, lpips_weight=args.ae_lpips_w,
            finetune_ckpt=args.ae_finetune_ckpt, finetune_decoder_only=args.ae_decoder_only,
+           logfile=os.path.join(args.outdir, "ae_training_log.txt")
        )
 
 
@@ -488,6 +553,7 @@ def main():
            outdir=args.outdir, num_epochs=args.ldm_epochs, lr=args.ldm_lr,
            latent_channels=args.ae_latent_ch, unet_channels=ldm_channels,
            use_cond=args.ldm_use_cond, resume_unet=args.ldm_resume,
+           logfile=os.path.join(args.outdir, "ldm_training_log.txt")
        )
 
 
