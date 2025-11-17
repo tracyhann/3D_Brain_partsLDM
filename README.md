@@ -6,12 +6,12 @@ pip install cu128 if running on sm120 GPU
 
 `cd <PROJECT_DIR>`
 
-`sudo docker run --gpus all -it   -v "$PWD":/workspace   -w /workspace   h8w108/3dbrain:parts_ldm_20251013  bash`
+sudo docker run --gpus all -it   -v "$PWD":/workspace   -w /workspace   h8w108/3dbrain:parts_ldm_20251013  bash
 
 #  If encountering conda init issue
 ## load conda’s bash hook for this shell
-`source /opt/conda/etc/profile.d/conda.sh  \
-  || eval "$(/opt/conda/bin/conda shell.bash hook)"`
+source /opt/conda/etc/profile.d/conda.sh  \
+  || eval "$(/opt/conda/bin/conda shell.bash hook)"
 
 `conda activate monai`
 
@@ -96,7 +96,7 @@ python scripts/train_3d_brain_ldm.py \
   --spacing 2,2,2 \
   --size 96,128,96 \
   --batch 1 \
-  --workers 8 \
+  --workers 4 \
   --train_val_split 0.1 \
   --stage both \
   --ae_epochs 100 \
@@ -179,7 +179,7 @@ python scripts/train_3d_brain_ldm.py \
   --spacing 1,1,1 \
   --size 192,224,192 \
   --batch 1 \
-  --workers 8 \
+  --workers 4 \
   --train_val_split 0.1 \
   --stage both \
   --ae_epochs 100 \
@@ -197,7 +197,7 @@ python scripts/train_3d_brain_ldm.py \
   --spacing 1,1,1 \
   --size 192,224,192 \
   --batch 1 \
-  --workers 8 \
+  --workers 4 \
   --train_val_split 0.1 \
   --stage both \
   --ae_epochs 100 \
@@ -215,7 +215,7 @@ python scripts/train_3d_brain_ldm.py \
   --spacing 1,1,1 \
   --size 192,224,192 \
   --batch 1 \
-  --workers 8 \
+  --workers 4 \
   --train_val_split 0.1 \
   --stage both \
   --ae_epochs 100 \
@@ -233,7 +233,7 @@ python scripts/train_3d_brain_ldm.py \
   --spacing 1,1,1 \
   --size 192,224,192 \
   --batch 1 \
-  --workers 8 \
+  --workers 4 \
   --train_val_split 0.1 \
   --stage both \
   --ae_epochs 100 \
@@ -251,7 +251,7 @@ python scripts/train_3d_brain_ldm.py \
   --spacing 1,1,1 \
   --size 192,224,192 \
   --batch 1 \
-  --workers 8 \
+  --workers 4 \
   --train_val_split 0.1 \
   --stage both \
   --ae_epochs 100 \
