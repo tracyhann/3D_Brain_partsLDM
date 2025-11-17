@@ -50,7 +50,6 @@ def make_dataloaders_from_csv(csv_path, conditions = ['age', 'sex', 'vol'], trai
     df = pd.read_csv(csv_path)
     data = []
     for i, row in df.iterrows():
-        if i ==10: break
         sample = {}
         sample['image'] = row['image']
         for c in conditions:
@@ -421,7 +420,7 @@ def main():
     experiment_dir = os.path.join(args.outdir, f"run_{datetime.now().strftime('%Y%m%d_%H%M%S')}")
     os.makedirs(experiment_dir, exist_ok=True)
     args.outdir = experiment_dir
-    print(f"✅ Output dir: {args.outdir}")
+    print(f"\n✅ Output dir: {args.outdir}\n")
 
     # argparse Namespace -> dict
     cfg = vars(args).copy()
@@ -459,7 +458,7 @@ def main():
     ae_latent_ch = int(args.ae_latent_ch)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    print(f"⚙️ Using {device}")
+    print(f"\n⚙️ Using {device}\n")
 
     autoencoder = AutoencoderKL(
         spatial_dims=3,
