@@ -74,9 +74,9 @@ python scripts/train_3d_brain_ldm.py \
   --workers 8 \
   --train_val_split 0.1 \
   --stage both \
-  --ae_epochs 3 \
+  --ae_epochs 100 \
   --ae_num_channels 64,128,256,512 \
-  --ldm_epochs 3 \
+  --ldm_epochs 150 \
   --ldm_num_channels 128,256,512 \
   --ldm_num_head_channels 0,64,64 \
   --ldm_sample_every 1
@@ -90,9 +90,9 @@ python scripts/train_3d_brain_ldm.py \
   --workers 8 \
   --train_val_split 0.1 \
   --stage both \
-  --ae_epochs 10 \
+  --ae_epochs 100 \
   --ae_num_channels 64,128,256,512 \
-  --ldm_epochs 3 \
+  --ldm_epochs 150 \
   --ldm_num_channels 128,256,512 \
   --ldm_num_head_channels 0,64,64 \
   --ldm_sample_every 1
@@ -106,9 +106,9 @@ python scripts/train_3d_brain_ldm.py \
   --workers 8 \
   --train_val_split 0.1 \
   --stage both \
-  --ae_epochs 3 \
+  --ae_epochs 100 \
   --ae_num_channels 64,128,256,512 \
-  --ldm_epochs 3 \
+  --ldm_epochs 150 \
   --ldm_num_channels 128,256,512 \
   --ldm_num_head_channels 0,64,64 \
   --ldm_sample_every 1
@@ -194,9 +194,9 @@ python scripts/train_3d_brain_ldm.py \
   --workers 8 \
   --train_val_split 0.1 \
   --stage both \
-  --ae_epochs 10 \
+  --ae_epochs 100 \
   --ae_num_channels 64,128,256,512 \
-  --ldm_epochs 3 \
+  --ldm_epochs 150 \
   --ldm_num_channels 128,256,512 \
   --ldm_num_head_channels 0,64,64 \
   --ldm_sample_every 25
