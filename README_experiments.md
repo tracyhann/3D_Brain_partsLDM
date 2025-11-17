@@ -86,7 +86,7 @@ python scripts/train_3d_brain_ldm.py \
   --ldm_epochs 150 \
   --ldm_num_channels 128,256,512 \
   --ldm_num_head_channels 0,64,64 \
-  --ldm_sample_every 1
+  --ldm_sample_every 25
 </pre>
 
 ## On a single 5090 GPU (VRAM < 30G):
@@ -104,7 +104,7 @@ python scripts/train_3d_brain_ldm.py \
   --ldm_epochs 150 \
   --ldm_num_channels 128,256,512 \
   --ldm_num_head_channels 0,64,64 \
-  --ldm_sample_every 1
+  --ldm_sample_every 25
 </pre>
 
 ## On limited VRAM, can also try:
@@ -122,7 +122,7 @@ python scripts/train_3d_brain_ldm.py \
   --ldm_epochs 150 \
   --ldm_num_channels 128,256,512 \
   --ldm_num_head_channels 0,64,64 \
-  --ldm_sample_every 1
+  --ldm_sample_every 25
 </pre>
 <pre>
 python scripts/train_3d_brain_ldm.py \
@@ -147,7 +147,30 @@ python scripts/train_3d_brain_ldm.py \
 
 ### 11/16/25
 
-Without conditions; whole brain and parts generation:
+Without conditions; whole brain and parts generation.
+
+Download the datasets from Hugging Face, place them under the /data directory in this project.
+
+<pre>
+./data
+├── ADNI_turboprepout_cerebellum_1114
+├── ADNI_turboprepout_cerebral_1114
+├── ADNI_turboprepout_left_hemi_1114
+├── ADNI_turboprepout_right_hemi_1114
+├── ADNI_turboprepout_whole_brain_1114
+├── cerebellum_data_1114.csv
+├── cerebral_data_1114.csv
+├── left_hemi_data_1114.csv
+├── right_hemi_data_1114.csv
+├── whole_brain_data_1114.csv
+└── ... (other folders if there exists any, irrelevant)
+</pre>
+
+- [Whole Brain](https://huggingface.co/tracyhan816/3D_Brain_partsLDM/tree/main/data/ADNI_turboprepout_whole_brain_1114)
+- [Left Hemisphere (excluding cerebellum)](https://huggingface.co/tracyhan816/3D_Brain_partsLDM/tree/main/data/ADNI_turboprepout_left_hemi_1114)
+- [Right Hemisphere (excluding cerebellum)](https://huggingface.co/tracyhan816/3D_Brain_partsLDM/tree/main/data/ADNI_turboprepout_right_hemi_1114)
+- [Cerebellum](https://huggingface.co/tracyhan816/3D_Brain_partsLDM/tree/main/data/ADNI_turboprepout_cerebellum_1114)
+- [Cerebral](https://huggingface.co/tracyhan816/3D_Brain_partsLDM/tree/main/data/ADNI_turboprepout_cerebral_1114)
 
 #### Whole Brain:
 <pre>
@@ -164,7 +187,7 @@ python scripts/train_3d_brain_ldm.py \
   --ldm_epochs 150 \
   --ldm_num_channels 128,256,512 \
   --ldm_num_head_channels 0,64,64 \
-  --ldm_sample_every 1
+  --ldm_sample_every 25
 </pre>
 
 #### Left Hemi:
@@ -207,6 +230,24 @@ python scripts/train_3d_brain_ldm.py \
 <pre>
 python scripts/train_3d_brain_ldm.py \
   --csv data/cerebellum_data_1114.csv \
+  --spacing 1,1,1 \
+  --size 192,224,192 \
+  --batch 1 \
+  --workers 8 \
+  --train_val_split 0.1 \
+  --stage both \
+  --ae_epochs 100 \
+  --ae_num_channels 64,128,256,512 \
+  --ldm_epochs 150 \
+  --ldm_num_channels 128,256,512 \
+  --ldm_num_head_channels 0,64,64 \
+  --ldm_sample_every 25
+</pre>
+
+#### Cerebral:
+<pre>
+python scripts/train_3d_brain_ldm.py \
+  --csv data/cerebral_data_1114.csv \
   --spacing 1,1,1 \
   --size 192,224,192 \
   --batch 1 \
