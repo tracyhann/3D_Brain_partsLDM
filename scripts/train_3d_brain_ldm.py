@@ -155,7 +155,7 @@ def train_ae(autoencoder, train_loader, val_loader = None, val_interval = 1, ae_
 
 
     n_epochs = ae_epochs
-    autoencoder_warm_up_n_epochs = 5 # default: 5
+    autoencoder_warm_up_n_epochs = int(0.2*n_epochs) # default: 20% of training epochs
     epoch_recon_loss_list = []
     epoch_gen_loss_list = []
     epoch_disc_loss_list = []
@@ -236,7 +236,7 @@ def train_ae(autoencoder, train_loader, val_loader = None, val_interval = 1, ae_
         epoch_ssim_train_list.append(np.mean(ssim_train / (step + 1)))
         epoch_psnr_train_list.append(np.mean(psnr_train / (step + 1)))
 
-        print(epoch_gen_loss_list)
+        #print(epoch_gen_loss_list)
 
         plot_recon_loss(epoch_recon_loss_list, epoch_ssim_train_list, epoch_psnr_train_list, title = f'Train Reconstruction Loss Curve_ep{epoch+1}', outdir = outdir, filename = 'AE_train_recon_loss.png')
         plot_adversarial_loss(epoch_gen_loss_list, epoch_disc_loss_list, title = f'Adversarial Training Curves_ep{epoch+1}', outdir = outdir, filename = 'AE_disc_loss.png')
@@ -276,7 +276,9 @@ def train_ae(autoencoder, train_loader, val_loader = None, val_interval = 1, ae_
                                    "train_gen_loss": epoch_gen_loss_list, "train_ssim": epoch_ssim_train_list, "train_psnr": epoch_psnr_train_list,
                                    "val_rec_loss": val_recon_epoch_loss_list, "val_ssim": epoch_ssim_val_list, "val_psnr": epoch_psnr_val_list})
                 plot_reconstructions(val_batch, val_reconstruction, idx = 0, channel=0, title = f'Val Sample Reconstructions_ep{epoch+1}', outdir = outdir, filename = 'AE_val_recons.png')
-
+            if epoch + 1 == n_epochs:
+                print('Final epoch, saving last AE checkpoint and val reconstructions...')
+                plot_reconstructions(val_batch, val_reconstruction, idx = 0, channel=0, title = f'Val Sample Reconstructions_ep{epoch+1}', outdir = outdir, filename = 'AE_last_val_recons.png')
         _save_ckpt(os.path.join(outdir, "AE_last.pt"), autoencoder, opt=optimizer_g, scaler=None, epoch=epoch+1, global_step=None, 
                         extra={"opt_d": optimizer_d, "train_rec_loss": epoch_recon_loss_list, "train_disc_loss": epoch_disc_loss_list, 
                                "train_gen_loss": epoch_gen_loss_list, "train_ssim": epoch_ssim_train_list, "train_psnr": epoch_psnr_train_list,
