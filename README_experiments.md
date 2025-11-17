@@ -28,6 +28,7 @@ We will train our own models. The model configurations of pretrained models are 
 Copy above.
 
 ## args
+<pre>
 ap = argparse.ArgumentParser(description="Train MONAI 3D LDM (AE -> LDM) from a CSV of file paths.")
 ap.add_argument("--csv", required=True, help="Path to CSV with columns: image[/path], sex, age, [seg/seg_path], [target_label]")
 ap.add_argument("--spacing", default="1,1,1", help="Target spacing mm (e.g., 1,1,1)")
@@ -38,9 +39,11 @@ ap.add_argument("--val_frac", type=float, default=0.1)
 
 
 ap.add_argument("--stage", choices=["ae", "ldm", "both"], default="both")
+</pre>
 
 
 ### AE config
+<pre>
 ap.add_argument("--ae_epochs", type=int, default=50)
 ap.add_argument("--ae_lr", type=float, default=1e-4)
 ap.add_argument("--ae_latent_ch", type=int, default=3)
@@ -50,9 +53,11 @@ ap.add_argument("--ae_perceptual_weight", type=float, default=0.001)
 ap.add_argument("--ae_kl_weight", type=float, default=1e-6)
 ap.add_argument("--ae_num_channels", default="64,128,256,512")
 ap.add_argument("--ae_ckpt", default="", help="Path to pretrained AE .pt (optional)")
+</pre>
 
 
 ### LDM config
+<pre>
 ap.add_argument("--ldm_epochs", type=int, default=150)
 ap.add_argument("--ldm_lr", type=float, default=1e-4)
 ap.add_argument("--ldm_use_cond", default="False", help="Use [part_vol_norm,sex,age] conditioning")
@@ -63,6 +68,7 @@ ap.add_argument("--ldm_sample_every", type=int, default=25, help="Synthesize sam
 
 
 ap.add_argument("--outdir", default="ckpts")
+</pre>
 
 
 ## Best case scenario if VRAM allows: 
