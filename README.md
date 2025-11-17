@@ -6,12 +6,12 @@ pip install cu128 if running on sm120 GPU
 
 `cd <PROJECT_DIR>`
 
-sudo docker run --gpus all -it   -v "$PWD":/workspace   -w /workspace   h8w108/3dbrain:parts_ldm_20251013  bash
+`sudo docker run --gpus all -it   -v "$PWD":/workspace   -w /workspace   h8w108/3dbrain:parts_ldm_20251013  bash`
 
 #  If encountering conda init issue
 ## load conda’s bash hook for this shell
-source /opt/conda/etc/profile.d/conda.sh  \
-  || eval "$(/opt/conda/bin/conda shell.bash hook)"
+`source /opt/conda/etc/profile.d/conda.sh  \
+  || eval "$(/opt/conda/bin/conda shell.bash hook)"`
 
 `conda activate monai`
 
