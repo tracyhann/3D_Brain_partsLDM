@@ -4,6 +4,7 @@ import tempfile
 
 import matplotlib.pyplot as plt
 import torch
+import torch.multiprocessing as mp
 import torch.nn.functional as F
 from monai import transforms
 from monai.apps import DecathlonDataset
@@ -37,6 +38,9 @@ import nibabel as nib
 import numpy as np
 import random
 import argparse
+
+# Avoid shared-memory exhaustion in DataLoader workers (e.g., limited /dev/shm)
+mp.set_sharing_strategy("file_system")
 
 
 
