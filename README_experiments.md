@@ -123,7 +123,8 @@ python scripts/train_3d_brain_ldm.py \
   --ldm_num_channels 128,256,512 \
   --ldm_num_head_channels 0,64,64 \
   --ldm_sample_every 1
-
+</pre>
+<pre>
 python scripts/train_3d_brain_ldm.py \
   --csv data/whole_brain_data_1114.csv \
   --spacing 1,1,1 \
@@ -138,6 +139,7 @@ python scripts/train_3d_brain_ldm.py \
   --ldm_num_channels 128,256,512 \
   --ldm_num_head_channels 0,64,64 \
   --ldm_sample_every 25
+</pre>
 
 
 
@@ -148,6 +150,7 @@ python scripts/train_3d_brain_ldm.py \
 Without conditions; whole brain and parts generation:
 
 #### Whole Brain:
+<pre>
 python scripts/train_3d_brain_ldm.py \
   --csv data/whole_brain_data_1114.csv \
   --spacing 1,1,1 \
@@ -162,8 +165,10 @@ python scripts/train_3d_brain_ldm.py \
   --ldm_num_channels 128,256,512 \
   --ldm_num_head_channels 0,64,64 \
   --ldm_sample_every 1
+</pre>
 
 #### Left Hemi:
+<pre>
 python scripts/train_3d_brain_ldm.py \
   --csv data/left_hemi_data_1114.csv \
   --spacing 1,1,1 \
@@ -178,8 +183,10 @@ python scripts/train_3d_brain_ldm.py \
   --ldm_num_channels 128,256,512 \
   --ldm_num_head_channels 0,64,64 \
   --ldm_sample_every 25
+</pre>
 
 #### Right Hemi:
+<pre>
 python scripts/train_3d_brain_ldm.py \
   --csv data/right_hemi_data_1114.csv \
   --spacing 1,1,1 \
@@ -194,8 +201,10 @@ python scripts/train_3d_brain_ldm.py \
   --ldm_num_channels 128,256,512 \
   --ldm_num_head_channels 0,64,64 \
   --ldm_sample_every 25
+</pre>
 
 #### Cerebellum:
+<pre>
 python scripts/train_3d_brain_ldm.py \
   --csv data/cerebellum_data_1114.csv \
   --spacing 1,1,1 \
@@ -210,3 +219,4 @@ python scripts/train_3d_brain_ldm.py \
   --ldm_num_channels 128,256,512 \
   --ldm_num_head_channels 0,64,64 \
   --ldm_sample_every 25
+</pre>
