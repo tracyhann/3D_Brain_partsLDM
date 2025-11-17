@@ -72,6 +72,7 @@ ap.add_argument("--outdir", default="ckpts")
 
 
 ## Best case scenario if VRAM allows: 
+<pre>
 python scripts/train_3d_brain_ldm.py \
   --csv data/whole_brain_data_1114.csv \
   --spacing 1,1,1 \
@@ -86,8 +87,10 @@ python scripts/train_3d_brain_ldm.py \
   --ldm_num_channels 128,256,512 \
   --ldm_num_head_channels 0,64,64 \
   --ldm_sample_every 1
+</pre>
 
 ## On a single 5090 GPU (VRAM < 30G):
+<pre>
 python scripts/train_3d_brain_ldm.py \
   --csv data/whole_brain_data_1114.csv \
   --spacing 2,2,2 \
@@ -102,8 +105,10 @@ python scripts/train_3d_brain_ldm.py \
   --ldm_num_channels 128,256,512 \
   --ldm_num_head_channels 0,64,64 \
   --ldm_sample_every 1
+</pre>
 
 ## On limited VRAM, can also try:
+<pre>
 python scripts/train_3d_brain_ldm.py \
   --csv data/whole_brain_data_1114.csv \
   --spacing 2,2,2 \
@@ -142,7 +147,7 @@ python scripts/train_3d_brain_ldm.py \
 
 Without conditions; whole brain and parts generation:
 
-Whole Brain:
+#### Whole Brain:
 python scripts/train_3d_brain_ldm.py \
   --csv data/whole_brain_data_1114.csv \
   --spacing 1,1,1 \
@@ -158,7 +163,7 @@ python scripts/train_3d_brain_ldm.py \
   --ldm_num_head_channels 0,64,64 \
   --ldm_sample_every 1
 
-Left Hemi:
+#### Left Hemi:
 python scripts/train_3d_brain_ldm.py \
   --csv data/left_hemi_data_1114.csv \
   --spacing 1,1,1 \
@@ -174,7 +179,7 @@ python scripts/train_3d_brain_ldm.py \
   --ldm_num_head_channels 0,64,64 \
   --ldm_sample_every 25
 
-Right Hemi:
+#### Right Hemi:
 python scripts/train_3d_brain_ldm.py \
   --csv data/right_hemi_data_1114.csv \
   --spacing 1,1,1 \
@@ -190,8 +195,7 @@ python scripts/train_3d_brain_ldm.py \
   --ldm_num_head_channels 0,64,64 \
   --ldm_sample_every 25
 
-Cerebellum:
-Left Hemi:
+#### Cerebellum:
 python scripts/train_3d_brain_ldm.py \
   --csv data/cerebellum_data_1114.csv \
   --spacing 1,1,1 \
