@@ -285,6 +285,7 @@ Download the datasets from Hugging Face, place them under the /data directory in
 #### 3 parts condition LDM
 Adjust the visible GPUs as needed 
 
+<pre>
 CUDA_VISIBLE_DEVICES=0, \
 python scripts/train_3d_brain_ldm_cond.py \
   --csv data/cond_data_3parts_1201.csv \
@@ -302,3 +303,4 @@ python scripts/train_3d_brain_ldm_cond.py \
   --ldm_num_head_channels 0,64,64 \
   --ldm_sample_every 100 \
   --out_prefix cond_3parts_gen
+</pre>
