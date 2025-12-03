@@ -278,9 +278,9 @@ Download the datasets from Hugging Face, place them under the /data directory in
 └── ... (other folders if there exists any, irrelevant)
 </pre>
 
-- [Left Hemisphere](https://huggingface.co/tracyhan816/3D_Brain_partsLDM/tree/main/data/ADNI_turboprepout_left_hemi_1114)
-- [Right Hemisphere](https://huggingface.co/tracyhan816/3D_Brain_partsLDM/tree/main/data/ADNI_turboprepout_right_hemi_1114)
-- [Cerebellum](https://huggingface.co/tracyhan816/3D_Brain_partsLDM/tree/main/data/ADNI_turboprepout_cerebellum_1114)
+- [Left Hemisphere](https://huggingface.co/tracyhan816/3D_Brain_partsLDM/tree/main/data/ADNI_turboprepout_lhemi_1201)
+- [Right Hemisphere]()
+- [Cerebellum](https://huggingface.co/tracyhan816/3D_Brain_partsLDM/tree/main/data/ADNI_turboprepout_cerebellum_1201)
 
 #### 3 parts condition LDM
 Adjust the visible GPUs as needed 
