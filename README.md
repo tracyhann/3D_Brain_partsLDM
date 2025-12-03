@@ -261,3 +261,44 @@ python scripts/train_3d_brain_ldm.py \
   --ldm_num_head_channels 0,64,64 \
   --ldm_sample_every 25
 </pre>
+
+
+### 12/03/25
+
+With conditions; whole brain and parts generation.
+
+Download the datasets from Hugging Face, place them under the /data directory in this project.
+
+<pre>
+./data
+├── ADNI_turboprepout_lhemi_1201
+├── ADNI_turboprepout_lhemi_1201
+├── ADNI_turboprepout_cerebellum_1201
+├── cond_data_3parts_1201.csv
+└── ... (other folders if there exists any, irrelevant)
+</pre>
+
+- [Left Hemisphere](https://huggingface.co/tracyhan816/3D_Brain_partsLDM/tree/main/data/ADNI_turboprepout_left_hemi_1114)
+- [Right Hemisphere](https://huggingface.co/tracyhan816/3D_Brain_partsLDM/tree/main/data/ADNI_turboprepout_right_hemi_1114)
+- [Cerebellum](https://huggingface.co/tracyhan816/3D_Brain_partsLDM/tree/main/data/ADNI_turboprepout_cerebellum_1114)
+
+#### 3 parts condition LDM
+Adjust the visible GPUs as needed 
+
+CUDA_VISIBLE_DEVICES=0, \
+python scripts/train_3d_brain_ldm_cond.py \
+  --csv data/cond_data_3parts_1201.csv \
+  --spacing 2,2,2 \
+  --size 96,128,96 \
+  --batch 1 \
+  --workers 0 \
+  --train_val_split 0.1 \
+  --stage both \
+  --ae_epochs 100 \
+  --ae_num_channels 64,128,256,512 \
+  --ldm_epochs 1000 \
+  --ldm_num_parts 3 \
+  --ldm_num_channels 128,256,512 \
+  --ldm_num_head_channels 0,64,64 \
+  --ldm_sample_every 100 \
+  --out_prefix cond_3parts_gen
