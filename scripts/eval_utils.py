@@ -7,6 +7,8 @@ from monai.utils import first, set_determinism
 import nibabel as nib
 import numpy as np
 from tqdm import tqdm
+from torch.amp import autocast
+import torch.nn.functional as F
 
 def psnr(x: torch.Tensor, y: torch.Tensor, eps: float = 1e-8) -> float:
     # assume normalized to [0,1]
@@ -121,6 +123,7 @@ def plot_recon_loss(epoch_recon_loss_list, epoch_ssim_loss_list, epoch_psnr_loss
     plt.style.use("ggplot")
     plt.title(title, fontsize=20)
     plt.plot(epoch_recon_loss_list, color="blue", linewidth=2.0, label="Recon L1-Loss")
+    plt.plot(epoch_ssim_loss_list, color="green", linewidth=2.0, label="SSIM")
     plt.yticks(fontsize=12)
     plt.xticks(fontsize=12)
     plt.xlabel("Epochs", fontsize=16)
@@ -132,13 +135,23 @@ def plot_recon_loss(epoch_recon_loss_list, epoch_ssim_loss_list, epoch_psnr_loss
     plt.style.use("ggplot")
     plt.title(title, fontsize=20)
     plt.plot(epoch_ssim_loss_list, color="green", linewidth=2.0, label="SSIM")
+    plt.yticks(fontsize=12)
+    plt.xticks(fontsize=12)
+    plt.xlabel("Epochs", fontsize=16)
+    plt.ylabel("Loss", fontsize=16)
+    plt.legend(prop={"size": 14})
+    plt.savefig(os.path.join(outdir, filename.replace('recon_loss', 'SSIM')))
+    plt.close('all')
+
+    plt.style.use("ggplot")
+    plt.title(title, fontsize=20)
     plt.plot(epoch_psnr_loss_list, color="orange", linewidth=2.0, label="PSNR")
     plt.yticks(fontsize=12)
     plt.xticks(fontsize=12)
     plt.xlabel("Epochs", fontsize=16)
     plt.ylabel("Loss", fontsize=16)
     plt.legend(prop={"size": 14})
-    plt.savefig(os.path.join(outdir, filename.replace('recon_loss', 'SSIM_PSNR')))
+    plt.savefig(os.path.join(outdir, filename.replace('recon_loss', 'PSNR')))
     plt.close('all')
 
 def plot_adversarial_loss(epoch_gen_loss_list, epoch_disc_loss_list, title = 'Adversarial Training Curves', outdir = 'ckpts', filename = 'AE_disc_loss.png'):
@@ -196,10 +209,17 @@ def sample_ldm(data_loader, autoencoder, unet, scheduler, inferer, device, idx =
     noise = torch.randn(latent_shape)
     noise = noise.to(device)
     scheduler.set_timesteps(num_inference_steps=1000)
-    synthetic_images = inferer.sample(
-        input_noise=noise, autoencoder_model=autoencoder, diffusion_model=unet, scheduler=scheduler
-    )
-    img = synthetic_images[idx, channel].detach().cpu().numpy()  # images
+
+    with torch.no_grad():
+        synthetic_images = inferer.sample(
+            input_noise=noise,
+            autoencoder_model=autoencoder,
+            diffusion_model=unet,
+            scheduler=scheduler,
+        )
+        #synthetic_images = torch.clamp(synthetic_images, -1.0, 1.0)
+
+    img = synthetic_images[idx, channel].cpu().numpy()
     print('IMG values check: ', img.min(), img.max(), img.mean(), img.std())
     fig, axs = plt.subplots(nrows=1, ncols=3)
     for ax in axs:
@@ -213,6 +233,118 @@ def sample_ldm(data_loader, autoencoder, unet, scheduler, inferer, device, idx =
     plt.savefig(os.path.join(outdir, filename + '.png'))
     nib.save(nib.Nifti1Image(img, np.eye(4)), os.path.join(outdir, filename + '.nii.gz'))
     plt.close('all')
+
+
+
+
+def sample_ldm_cond(
+    data_loader,
+    autoencoder,
+    unet,
+    scheduler,
+    device,
+    idx=0,
+    channel=0,
+    outdir="ckpts",
+    filename="synthetic",
+    num_inference_steps=250,
+    part_id=0,          # which part to generate
+):
+    """
+    Sample from a part-conditioned latent diffusion model.
+
+    Assumes:
+      - UNet was trained with in_channels = latent_channels + num_parts
+      - Conditioning is done by concatenating a one-hot part_map in latent space.
+    """
+    autoencoder.eval()
+    unet.eval()
+
+    # 1) Get latent shape and scale_factor the same way as in training
+    with torch.no_grad():
+        batch = next(iter(data_loader))
+        images = batch["image"].to(device)                # [B, C, D, H, W]
+        with autocast(device_type="cuda", enabled=(device.type == "cuda")):
+            z = autoencoder.encode_stage_2_inputs(images) # [B, Cz, Dz, Hz, Wz]
+
+    # latent shape and channels
+    latent_shape = z.shape
+    B, Cz, Dz, Hz, Wz = latent_shape
+
+    # scale_factor computed like in train_ldm
+    scale_factor = 1.0 / torch.std(z)
+    print(f"[sample_ldm] Using scale_factor = {scale_factor.item():.4f}")
+
+    # infer num_parts from UNet in_channels
+    num_parts = unet.in_channels - Cz
+    if num_parts <= 0:
+        raise ValueError(
+            f"UNet.in_channels={unet.in_channels}, latent_channels={Cz}, "
+            f"so inferred num_parts={num_parts} (must be > 0)."
+        )
+
+    # 2) Sample initial noise in latent space (scaled)
+    # You can use B>1, but idx only makes sense if B>idx
+    noise = torch.randn(latent_shape, device=device)  # [B, Cz, Dz, Hz, Wz]
+
+    # 3) Set up DDPM timesteps
+    scheduler.set_timesteps(num_inference_steps=num_inference_steps)
+    timesteps = scheduler.timesteps.to(device)        # e.g. [1000, ..., 0]
+
+    x = noise
+
+    with torch.no_grad():
+        for t in timesteps:
+            # t: scalar tensor
+            t_batch = torch.full((B,), t, device=device, dtype=torch.long)
+
+            # 3a) Build part_map in LATENT space
+            #     same part_id for all samples here; you can generalize later
+            part_ids = torch.full((B,), int(part_id), device=device, dtype=torch.long)  # [B]
+            part_onehot = F.one_hot(part_ids, num_classes=num_parts).float()           # [B, num_parts]
+
+            part_map = part_onehot.view(B, num_parts, 1, 1, 1)                         # [B, P, 1, 1, 1]
+            part_map = part_map.expand(-1, -1, Dz, Hz, Wz)                              # [B, P, Dz, Hz, Wz]
+
+            # 3b) Concatenate conditioning channels to current latent sample
+            x_cond = torch.cat([x, part_map], dim=1)                                    # [B, Cz+P, Dz, Hz, Wz]
+
+            # 3c) UNet predicts noise
+            with autocast(device_type="cuda", enabled=(device.type == "cuda")):
+                model_output = unet(x_cond, t_batch)                                    # [B, Cz, Dz, Hz, Wz]
+
+            # 3d) DDPM update
+            x = scheduler.step(model_output=model_output, timestep=t, sample=x)[0]
+
+        # x is final latent (scaled); unscale before decode
+        latents_final = x / scale_factor
+
+        # 4) Decode latents back to image space
+        with autocast(device_type="cuda", enabled=(device.type == "cuda")):
+            synthetic_images = autoencoder.decode_stage_2_outputs(latents_final)        # [B, C, D, H, W]
+
+    # 5) Visualization / saving (same as before)
+    img = synthetic_images[idx, channel].cpu().numpy()   # [D, H, W]
+    print("IMG values check: ", img.min(), img.max(), img.mean(), img.std())
+
+    os.makedirs(outdir, exist_ok=True)
+
+    fig, axs = plt.subplots(nrows=1, ncols=3)
+    for ax in axs:
+        ax.axis("off")
+    axs[0].imshow(img[..., img.shape[2] // 2], cmap="gray")
+    axs[1].imshow(img[:, img.shape[1] // 2, ...], cmap="gray")
+    axs[2].imshow(img[img.shape[0] // 2, ...], cmap="gray")
+
+    plt.savefig(os.path.join(outdir, filename + ".png"), bbox_inches="tight")
+    plt.close(fig)
+
+    # Save as nifti (float32)
+    img_nii = img.astype(np.float32)
+    nib.save(
+        nib.Nifti1Image(img_nii, np.eye(4)),
+        os.path.join(outdir, filename + ".nii.gz"),
+    )
 
 
 
