@@ -279,7 +279,7 @@ Download the datasets from Hugging Face, place them under the /data directory in
 </pre>
 
 - [Left Hemisphere](https://huggingface.co/tracyhan816/3D_Brain_partsLDM/tree/main/data/ADNI_turboprepout_lhemi_1201)
-- [Right Hemisphere]()
+- [Right Hemisphere](https://huggingface.co/tracyhan816/3D_Brain_partsLDM/tree/main/data/ADNI_turboprepout_rhemi_1201)
 - [Cerebellum](https://huggingface.co/tracyhan816/3D_Brain_partsLDM/tree/main/data/ADNI_turboprepout_cerebellum_1201)
 
 #### 3 parts condition LDM
