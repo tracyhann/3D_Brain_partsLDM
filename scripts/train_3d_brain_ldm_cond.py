@@ -261,10 +261,12 @@ def train_ae(autoencoder, train_loader, val_loader = None, val_interval = 1, ae_
             val_epoch_loss = 0
             val_progress_bar = tqdm(enumerate(val_loader), total=len(val_loader), ncols=70)
             val_progress_bar.set_description(f"Val Epoch {epoch}")
+            val_recons = []
             with torch.no_grad():
                 for val_step, val_batch in val_progress_bar:
                     val_images = val_batch["image"].to(device)
                     val_reconstruction, _, _ = autoencoder(val_images)
+                    val_recons.append(val_reconstruction.cpu())
                     val_recons_loss = l1_loss(val_reconstruction.float(), val_images.float())
                     val_epoch_loss += val_recons_loss.item()
                     psnr_val += psnr(val_reconstruction.float(), val_images.float())
@@ -289,7 +291,9 @@ def train_ae(autoencoder, train_loader, val_loader = None, val_interval = 1, ae_
                             extra={"opt_d": optimizer_d, "train_rec_loss": epoch_recon_loss_list, "train_disc_loss": epoch_disc_loss_list, 
                                    "train_gen_loss": epoch_gen_loss_list, "train_ssim": epoch_ssim_train_list, "train_psnr": epoch_psnr_train_list,
                                    "val_rec_loss": val_recon_epoch_loss_list, "val_ssim": epoch_ssim_val_list, "val_psnr": epoch_psnr_val_list})
-                plot_reconstructions(val_batch, val_reconstruction, idx = 0, channel=0, title = f'Val Sample Reconstructions_ep{epoch+1}', outdir = outdir, filename = 'AE_val_recons.png')
+                for i in range(5):
+                    val_reconstruction = random.choice(val_recons)
+                    plot_reconstructions(val_batch, val_reconstruction, idx = 0, channel=0, title = f'Val Sample Reconstructions_ep{epoch+1}', outdir = outdir, filename = f'AE_val{i}_recons.png')
             if epoch + 1 == n_epochs:
                 print('Final epoch, saving last AE checkpoint and val reconstructions...')
                 plot_reconstructions(val_batch, val_reconstruction, idx = 0, channel=0, title = f'Val Sample Reconstructions_ep{epoch+1}', outdir = outdir, filename = 'AE_last_val_recons.png')

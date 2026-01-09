@@ -1,10 +1,20 @@
 import os
+
+os.environ["OMP_NUM_THREADS"] = "4"
+os.environ["MKL_NUM_THREADS"] = "4"
+os.environ["OPENBLAS_NUM_THREADS"] = "4"
+os.environ["NUMEXPR_NUM_THREADS"] = "4"
+
+import torch
+torch.set_num_threads(4)          # intra-op threads
+torch.set_num_interop_threads(1)  # how many threads coordinate parallel regions
+
 import shutil
 import tempfile
 
 import matplotlib.pyplot as plt
 import torch
-import torch.multiprocessing as mp
+import torch.nn as nn
 import torch.nn.functional as F
 from monai import transforms
 from monai.apps import DecathlonDataset
@@ -16,6 +26,7 @@ from torch.amp import autocast
 from torch.nn import L1Loss
 from tqdm import tqdm
 import copy
+import json
 
 from generative.inferers import LatentDiffusionInferer
 from generative.losses import PatchAdversarialLoss, PerceptualLoss
@@ -40,11 +51,24 @@ import random
 import argparse
 
 # Avoid shared-memory exhaustion in DataLoader workers (e.g., limited /dev/shm)
-mp.set_sharing_strategy("file_system")
+#np.set_sharing_strategy("file_system")
+
+def seed_all(seed: int):
+    os.environ["PYTHONHASHSEED"] = str(seed)
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+
+    # determinism (good for debugging; may slow a bit)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+
+seed_all(1017)
 
 
 
-def make_dataloaders_from_csv(csv_path, conditions = ['age', 'sex', 'vol'], train_transforms = None,
+def make_dataloaders_from_csv(csv_path, conditions = ['age', 'sex', 'group', 'vol'], train_transforms = None,
                               train_val_split = 0.1, batch_size = 1, num_workers=8, seed = 1017):
     #Make a list of dicts. Keys must match your transforms.
     #images = sorted(glob("data/ADNI_turboprepout_whole_brain/*.nii.gz")) 
@@ -56,12 +80,12 @@ def make_dataloaders_from_csv(csv_path, conditions = ['age', 'sex', 'vol'], trai
     for i, row in df.iterrows():
         sample = {}
         sample['image'] = row['image']
+        sample['mask'] = row['mask']
         for c in conditions:
             sample[c] = row[c]
         data.append(sample)
     random.seed(seed)
     random.shuffle(data)
-    random.seed()
     split = int(len(data)*train_val_split)
     train_data, val_data = data[:-split], data[-split:]
     train_ds = Dataset(data=train_data, transform=train_transforms)
@@ -96,8 +120,6 @@ def check_train_data(train_loader, idx = 0, title = 'Train data example', save_p
 
 
 
-
-
 def _load_ckpt_into_ae(ae, ckpt_path, device):
     state = torch.load(ckpt_path, map_location=device, weights_only=False)
     state = state.get("state_dict", state)
@@ -120,17 +142,21 @@ def _save_ckpt(path: str, unet: torch.nn.Module, opt, scaler, epoch: int, global
     torch.save(payload, path)
 
 
-def _load_ckpt_into_unet(unet: torch.nn.Module, ckpt_path: str) -> Tuple[int, int]:
+def _load_ckpt_into_unet(unet: torch.nn.Module, ckpt_path: str, device) -> Tuple[int, int]:
     """Loads either a raw state_dict or a packaged checkpoint. Returns (epoch, global_step) if present."""
-    sd = torch.load(ckpt_path, map_location="cpu")
+    sd = torch.load(ckpt_path, map_location=device)
     if "state_dict" in sd:
         missing, unexpected = unet.load_state_dict(sd["state_dict"], strict=False)
         print(f"[LDM] resumed UNet (packaged): missing={len(missing)} unexpected={len(unexpected)}")
-        return int(sd.get("epoch", 0)), int(sd.get("global_step", 0))
+        return int(sd.get("epoch", 0)), 0 #int(sd.get("global_step", 0))
     else:
         missing, unexpected = unet.load_state_dict(sd, strict=False)
         print(f"[LDM] resumed UNet (raw): missing={len(missing)} unexpected={len(unexpected)}")
         return 0, 0
+    
+def _load_ckpt_into_conditioner(conditioner, ckpt_path, device):
+    ckpt = torch.load(ckpt_path, map_location=device)
+    conditioner.load_state_dict(ckpt['state_dict'])
 
 
 def KL_loss(z_mu, z_sigma):
@@ -294,54 +320,200 @@ def train_ae(autoencoder, train_loader, val_loader = None, val_interval = 1, ae_
     return autoencoder, ae_best
 
 
-'''
-# 5) Iterate
-for batch in loader:
-    imgs, segs = batch["image"], batch["label"]
-    # ... forward pass ...
-'''
 
 
+class CovariateConditioner(nn.Module):
+    """
+    Tabular/global covariates -> cross-attention context tokens.
 
-def train_ldm(unet, train_loader, autoencoder, ldm_epochs = 150,
-              lr=1e-4, device = torch.device("cuda" if torch.cuda.is_available() else "cpu"), outdir = 'ckpts', sample_every = 25):
+    Expects:
+      age:    [B] float (normalized)
+      volume: [B] float (normalized recommended)
+      sex:    [B] long  in {0,1,2}
+      group:  [B] long  in {0,1,2,3,4,5}
+
+    Returns:
+      ctx: [B, 1, d_model]
+    """
+    def __init__(
+        self,
+        d_model: int = 128,
+        d_cat: int = 16,
+        n_sex: int = 3,
+        n_groups: int = 6,
+        p_drop: float = 0.1,
+    ):
+        super().__init__()
+        self.n_sex = n_sex
+        self.n_groups = n_groups
+        self.d_model = d_model
+
+        # categorical embeddings
+        self.sex_emb = nn.Embedding(n_sex, d_cat)
+        self.group_emb = nn.Embedding(n_groups, d_cat)
+
+        # continuous features -> d_model
+        self.num_mlp = nn.Sequential(
+            nn.Linear(2, 64),
+            nn.SiLU(),
+            nn.Linear(64, d_model),
+        )
+
+        # fuse (num + cat) -> d_model
+        self.fuse = nn.Sequential(
+            nn.Linear(d_model + 2 * d_cat, d_model),
+            nn.SiLU(),
+            nn.Linear(d_model, d_model),
+        )
+
+        self.norm = nn.LayerNorm(d_model)
+        self.drop = nn.Dropout(p_drop)
+
+    def forward(self, age, sex, group, volume):
+        # flatten to [B]
+        age = age.float().view(-1)
+        volume = volume.float().view(-1)
+        sex = sex.long().view(-1)
+        group = group.long().view(-1)
+
+        # sanity checks (cheap, helps catch silent bugs)
+        if torch.any(sex < 0) or torch.any(sex >= self.n_sex):
+            raise ValueError(f"sex indices out of range [0, {self.n_sex-1}]")
+        if torch.any(group < 0) or torch.any(group >= self.n_groups):
+            raise ValueError(f"group indices out of range [0, {self.n_groups-1}]")
+
+        # numeric -> features
+        num = torch.stack([age, volume], dim=1)     # [B,2]
+        num_feat = self.num_mlp(num)                # [B,d_model]
+
+        # categorical -> features
+        cat_feat = torch.cat(
+            [self.sex_emb(sex), self.group_emb(group)],
+            dim=1
+        )                                           # [B,2*d_cat]
+
+        # fuse -> context token
+        ctx = self.fuse(torch.cat([num_feat, cat_feat], dim=1))  # [B,d_model]
+        ctx = self.drop(self.norm(ctx))
+        return ctx.unsqueeze(1)  # [B,1,d_model]
+
+def sample_ldm_conditioner(
+    data_loader,
+    autoencoder,
+    unet,
+    scheduler,
+    inferer,
+    device,
+    conditioner,  
+    latent_shape,               
+    age=None, sex=None, group=None, volume=None,  # <-- either pass explicit values OR read from batch
+    cfg_scale: float = 3.0,      # <-- guidance strength (0 disables CFG)
+    num_inference_steps: int = 1000,
+    idx: int = 0,
+    channel: int = 0,
+    outdir: str = "ckpts",
+    filename: str = "synthetic",
+):
+    """
+    Conditional sampling with cross-attn context from (age, sex, group, volume).
+
+    If (age/sex/group/volume) are not provided, it will take them from the first batch
+    of data_loader (keys: "age","sex","group","volume").
+    """
+    autoencoder.eval()
+    unet.eval()
+    conditioner.eval()
+
+    # move to device + shape [B]
+    age = age.to(device).float().view(-1)
+    volume = volume.to(device).float().view(-1)
+    sex = sex.to(device).long().view(-1)
+    group = group.to(device).long().view(-1)
+
+    # IMPORTANT: ctx batch size must match noise batch size.
+    # Sample with batch size = latent_shape[0], so ctx must be [B,1,d_model] with same B.
+    with torch.no_grad():
+        ctx = conditioner(age=age, sex=sex, group=group, volume=volume)  # [B,1,d_model]
+
+    # --- sample ---
+    noise = torch.randn(latent_shape, device=device)
+    scheduler.set_timesteps(num_inference_steps=num_inference_steps)
+
+    with torch.no_grad():
+        synthetic_images = inferer.sample(
+            input_noise=noise,
+            autoencoder_model=autoencoder,
+            diffusion_model=unet,
+            scheduler=scheduler,
+            conditioning=ctx,          # <-- add
+            mode="crossattn",          # <-- add
+        )
+
+    img = synthetic_images[idx, channel].cpu().numpy()
+    print("IMG values check: ", img.min(), img.max(), img.mean(), img.std())
+
+    fig, axs = plt.subplots(nrows=1, ncols=3)
+    for ax in axs:
+        ax.axis("off")
+
+    axs[0].imshow(img[..., img.shape[2] // 2], cmap="gray")
+    axs[1].imshow(img[:, img.shape[1] // 2, ...], cmap="gray")
+    axs[2].imshow(img[img.shape[0] // 2, ...], cmap="gray")
+
+    os.makedirs(outdir, exist_ok=True)
+    plt.savefig(os.path.join(outdir, filename + ".png"))
+    nib.save(nib.Nifti1Image(img, np.eye(4)), os.path.join(outdir, filename + ".nii.gz"))
+    plt.close("all")
+
+
+def train_ldm(unet, conditioner, train_loader, autoencoder, ldm_epochs = 150,
+              lr=1e-4, scale_factor = None, device = torch.device("cuda" if torch.cuda.is_available() else "cpu"), 
+              outdir = 'ckpts', sample_every = 25):
 
     scheduler = DDPMScheduler(num_train_timesteps=1000, schedule="scaled_linear_beta", beta_start=0.0015, beta_end=0.0195)
 
     with torch.no_grad():
         with autocast(device_type = 'cuda', enabled=(device.type == "cuda")):
-            check_data = first(train_loader)
-            z = autoencoder.encode_stage_2_inputs(check_data["image"].to(device))
-
-    print(f"Scaling factor set to {1/torch.std(z)}")
-    scale_factor = 1 / torch.std(z)
-
+                check_data = first(train_loader)
+                z = autoencoder.encode_stage_2_inputs(check_data["image"].to(device))
+    if scale_factor == None:
+        scale_factor = 1 / torch.std(z)
+    print(f"Scaling factor set to {scale_factor}")
 
     inferer = LatentDiffusionInferer(scheduler, scale_factor=scale_factor)
-    optimizer_diff = torch.optim.Adam(params=unet.parameters(), lr=lr)
 
+    #optimizer_diff = torch.optim.Adam(params=unet.parameters(), lr=lr)
+    optimizer_diff = torch.optim.Adam(list(unet.parameters()) + list(conditioner.parameters()), lr=lr)
 
     n_epochs = ldm_epochs
     epoch_loss_list = []
     autoencoder.eval()
     scaler = GradScaler()
 
-    first_batch = first(train_loader)
-    z = autoencoder.encode_stage_2_inputs(first_batch["image"].to(device))
-
     for p in autoencoder.parameters(): p.requires_grad = False
+
+    unet_best = None
+    conditioner_best = None
+    unet_best_loss = float('inf')
+
     for epoch in range(n_epochs):
         unet.train()
+        conditioner.train()
         epoch_loss = 0
         progress_bar = tqdm(enumerate(train_loader), total=len(train_loader), ncols=70)
         progress_bar.set_description(f"Epoch {epoch}")
         for step, batch in progress_bar:
             images = batch["image"].to(device)
             optimizer_diff.zero_grad(set_to_none=True)
+            age = batch["age"].to(device).float().view(-1)
+            volume = batch["vol"].to(device).float().view(-1)
+            sex = batch["sex"].to(device).long().view(-1)
+            group = batch["group"].to(device).long().view(-1)
+            cond_lat = conditioner(age, sex, group, volume)     # [B,1,128]
 
             with autocast(device_type = 'cuda', enabled=(device.type == "cuda")):
                 # Generate random noise
-                noise = torch.randn_like(z).to(device)
+                noise = torch.randn(z.shape).to(device)
 
                 # Create timesteps
                 timesteps = torch.randint(
@@ -350,7 +522,13 @@ def train_ldm(unet, train_loader, autoencoder, ldm_epochs = 150,
 
                 # Get model prediction
                 noise_pred = inferer(
-                    inputs=images, autoencoder_model=autoencoder, diffusion_model=unet, noise=noise, timesteps=timesteps
+                    inputs=images,
+                    autoencoder_model=autoencoder,
+                    diffusion_model=unet,
+                    noise=noise,
+                    timesteps=timesteps,
+                    condition=cond_lat,
+                    mode="crossattn",
                 )
 
                 loss = F.mse_loss(noise_pred.float(), noise.float())
@@ -364,12 +542,56 @@ def train_ldm(unet, train_loader, autoencoder, ldm_epochs = 150,
             progress_bar.set_postfix({"loss": epoch_loss / (step + 1)})
         epoch_loss_list.append(epoch_loss / (step + 1))
 
+        if epoch_loss / (step + 1) < unet_best_loss:
+            print('Updating best UNet + Conditioner checkpoint...')
+            unet_best_loss = epoch_loss / (step + 1)
+            unet_best = copy.deepcopy(unet)
+            conditioner_best = copy.deepcopy(conditioner)
+            _save_ckpt(os.path.join(outdir, "UNET_best.pt"), unet, opt=optimizer_diff, scaler=scaler, epoch=epoch+1, global_step=None, 
+                extra={"train_loss": epoch_loss_list, "scale_factor": float(scale_factor)})
+            torch.save(
+                {
+                    "state_dict": conditioner.state_dict(),
+                    "cfg": {"n_groups": 6, "n_sex":3, "d_model": 128, "d_cat": 16},
+                },
+                os.path.join(outdir, "conditioner_best.pt"),
+            )
+            check_data = first(train_loader)
+            z = autoencoder.encode_stage_2_inputs(check_data["image"].to(device))
+            latent_shape = z.shape
+            age = check_data['age']
+            sex = check_data['sex']
+            vol = check_data['vol']
+            group = check_data['group']
+            description = [f'{float(age):.2f}', int(sex), f'{float(vol):.4f}',int(group) ]
+            sample_ldm_conditioner(train_loader, autoencoder, unet, scheduler, inferer, device, 
+                                conditioner, latent_shape=latent_shape, age = age, sex = sex, volume = vol, group=group, idx = 0, channel = 0, 
+                                outdir = outdir, filename = f'synthetic_ep{epoch+1}_{description}_BEST')
+
         if (epoch + 1) % sample_every == 0:
-            sample_ldm(train_loader, autoencoder, unet, scheduler, inferer, device, idx = 0, channel = 0, 
-                       outdir = outdir, filename = f'synthetic_ep{epoch+1}')
+            check_data = first(train_loader)
+            z = autoencoder.encode_stage_2_inputs(check_data["image"].to(device))
+            latent_shape = z.shape
+            age = check_data['age']
+            sex = check_data['sex']
+            vol = check_data['vol']
+            group = check_data['group']
+            description = [f'{float(age):.2f}', int(sex), f'{float(vol):.4f}',int(group) ]
+            sample_ldm_conditioner(train_loader, autoencoder, unet, scheduler, inferer, device, 
+                                   conditioner, latent_shape=latent_shape, age = age, sex = sex, volume = vol, group=group, idx = 0, channel = 0, 
+                       outdir = outdir, filename = f'synthetic_ep{epoch+1}_{description}')
             
         _save_ckpt(os.path.join(outdir, "UNET_last.pt"), unet, opt=optimizer_diff, scaler=scaler, epoch=epoch+1, global_step=None, 
-                    extra={"train_loss": epoch_loss_list})
+                    extra={"train_loss": epoch_loss_list, "scale_factor": float(scale_factor)})
+        torch.save(
+            {
+                "state_dict": conditioner.state_dict(),
+                "cfg": {"n_groups": 6, "n_sex":3, "d_model": 128, "d_cat": 16},
+            },
+            os.path.join(outdir, "conditioner_last.pt"),
+        )
+
+      
         plot_unet_loss(epoch_loss_list, title = f'UNET Loss Curves_ep{epoch+1}', outdir = outdir, filename = 'UNET_loss.png')
 
 
@@ -412,18 +634,21 @@ def main():
     ap.add_argument("--ldm_use_cond", default="False", help="Use [part_vol_norm,sex,age] conditioning")
     ap.add_argument("--ldm_num_channels", default="128,256,512")
     ap.add_argument("--ldm_num_head_channels", default="0,64,64")
-    ap.add_argument("--ldm_ckpt", default="", help="Resume UNet weights (optional)")
+    ap.add_argument("--ldm_ckpt", default="", help="Path to pretrained UNet .pt (optional)")
+    ap.add_argument("--ldm_scale_factor", default=1.0, help="Set scale factor (inference should match training)")
     ap.add_argument("--ldm_sample_every", type=int, default=25, help="Synthesize samples every N epochs")
 
+    ap.add_argument('--conditioner_ckpt', default='', help='Path to pretrained Conditioner .pt (optional)')
 
     ap.add_argument("--outdir", default="ckpts")
+    ap.add_argument("--out_prefix", default="")
 
 
     args = ap.parse_args()
 
     from datetime import datetime
     import json
-    experiment_dir = os.path.join(args.outdir, f"run_{datetime.now().strftime('%Y%m%d_%H%M%S')}")
+    experiment_dir = os.path.join(args.outdir, f"run_{args.out_prefix}_{datetime.now().strftime('%Y%m%d_%H%M%S')}")
     os.makedirs(experiment_dir, exist_ok=True)
     args.outdir = experiment_dir
     print(f"\n✅ Output dir: {args.outdir}\n")
@@ -443,28 +668,33 @@ def main():
     channel = 0  # 0 = Flair
     train_transforms = transforms.Compose(
         [
-        transforms.LoadImaged(keys=["image"]),
-        transforms.EnsureChannelFirstd(keys=["image"]),
-        transforms.Lambdad(keys="image", func=lambda x: x[channel, :, :, :]),
-        transforms.EnsureChannelFirstd(keys=["image"], channel_dim="no_channel"),
-        transforms.EnsureTyped(keys=["image"]),
-        transforms.Orientationd(keys=["image"], axcodes="RAS"),
-        transforms.Spacingd(keys=["image"], pixdim=spacing, mode=("bilinear")),
-        transforms.CropForegroundd(keys="image", source_key="image"),
-        transforms.SpatialPadd(keys=["image"], spatial_size=size, mode='constant', constant_values=-1.0), # MRI volumes are [-1,1] normalized
-        transforms.CenterSpatialCropd(keys=["image"], roi_size=size), 
+        transforms.LoadImaged(keys=["image", "mask"]),
+        transforms.EnsureChannelFirstd(keys=["image", "mask"]),
+        transforms.Lambdad(keys=["image", "mask"], func=lambda x: x[channel, :, :, :]),
+        transforms.EnsureChannelFirstd(keys=["image", "mask"], channel_dim="no_channel"),
+        transforms.EnsureTyped(keys=["image", "mask"]),
+        transforms.Orientationd(keys=["image", "mask"], axcodes="RAS"),
+        transforms.Spacingd(keys=["image", "mask"], pixdim=spacing, mode=("bilinear")),
+        #transforms.CropForegroundd(keys="image", source_key="image"),
+        #transforms.CenterSpatialCropd(keys=["image"], roi_size=size), 
+        transforms.SpatialPadd(keys=["image", "mask"], spatial_size=size, mode='constant', constant_values=-1.0), # MRI volumes are [-1,1] normalized
         #transforms.ScaleIntensityRangePercentilesd(keys="image", lower=0, upper=99.5, b_min=0, b_max=1),
         ]
     )
 
-    train_loader, val_loader = make_dataloaders_from_csv(args.csv, conditions = ['age', 'sex', 'vol'], train_transforms = train_transforms,
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    print(f"\n⚙️ Using {device}\n")
+    
+    seed = 1017
+    g = torch.Generator(device=device).manual_seed(seed)
+    random.seed(1017)
+    seed_all(1017)
+
+    train_loader, val_loader = make_dataloaders_from_csv(args.csv, conditions = ['age', 'sex', 'vol', 'group'], train_transforms = train_transforms,
                                 train_val_split = args.train_val_split, batch_size = args.batch, num_workers=args.workers, seed = 1017)
 
     ae_num_channels = tuple(int(x) for x in args.ae_num_channels.split(","))
     ae_latent_ch = int(args.ae_latent_ch)
-
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    print(f"\n⚙️ Using {device}\n")
 
     autoencoder = AutoencoderKL(
         spatial_dims=3,
@@ -498,6 +728,8 @@ def main():
         out_channels=3, # default: 3
         num_res_blocks=2,
         num_channels=ldm_num_channels, # default: (128, 256, 512)
+        with_conditioning=True,
+        cross_attention_dim=128,
         attention_levels=(False, True, True),
         num_head_channels=ldm_num_head_channels, # default: (0, 64, 64)
         norm_num_groups=32, norm_eps=1e-6,
@@ -507,12 +739,25 @@ def main():
     )
     unet.to(device)
 
+    conditioner = CovariateConditioner(n_groups=6, n_sex=3, d_model=128).to(device)
+
+    scale_factor = None
+
     if args.ldm_ckpt != "":
-        _load_ckpt_into_unet(unet, args.ldm_ckpt)
+        _load_ckpt_into_unet(unet, args.ldm_ckpt, device)
+        ckpt = torch.load(args.ldm_ckpt, map_location=device)
+        try:
+            ckpt = torch.load(args.ldm_ckpt, map_location=device)
+            scale_factor = float(ckpt['extra']['scale_factor'])
+            print('Loading scale factor = ', scale_factor)
+        except:
+            scale_factor = None
+    if args.conditioner_ckpt != "":
+        _load_ckpt_into_conditioner(conditioner, args.conditioner_ckpt, device)
 
     if args.stage in ["ldm", "both"]:
-        train_ldm(unet, train_loader, autoencoder, ldm_epochs = args.ldm_epochs,
-              lr=args.ldm_lr, device = device, outdir = args.outdir, sample_every = args.ldm_sample_every)
+        train_ldm(unet, conditioner, train_loader, autoencoder, ldm_epochs = args.ldm_epochs,
+              lr=args.ldm_lr, scale_factor=scale_factor, device = device, outdir = args.outdir, sample_every = args.ldm_sample_every)
 
 
 if __name__ == "__main__":

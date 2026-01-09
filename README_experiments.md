@@ -78,7 +78,7 @@ python scripts/train_3d_brain_ldm.py \
   --spacing 1,1,1 \
   --size 192,224,192 \
   --batch 1 \
-  --workers 8 \
+  --workers 4 \
   --train_val_split 0.1 \
   --stage both \
   --ae_epochs 100 \
@@ -96,10 +96,25 @@ python scripts/train_3d_brain_ldm.py \
   --spacing 2,2,2 \
   --size 96,128,96 \
   --batch 1 \
-  --workers 8 \
+  --workers 4 \
   --train_val_split 0.1 \
   --stage both \
   --ae_epochs 100 \
+  --ae_ckpt ckpts/run_20251117_190756/AE_last.pt \
+  --ae_num_channels 64,128,256,512 \
+  --ldm_epochs 150 \
+  --ldm_num_channels 128,256,512 \
+  --ldm_num_head_channels 0,64,64 \
+  --ldm_sample_every 25
+python scripts/train_3d_brain_ldm.py \
+  --csv data/whole_brain_data_1114.csv \
+  --spacing 2,2,2 \
+  --size 96,128,96 \
+  --batch 1 \
+  --workers 4 \
+  --train_val_split 0.1 \
+  --stage ldm \
+  --ae_ckpt ckpts/run_20251117_190756/AE_last.pt \
   --ae_num_channels 64,128,256,512 \
   --ldm_epochs 150 \
   --ldm_num_channels 128,256,512 \
@@ -114,7 +129,7 @@ python scripts/train_3d_brain_ldm.py \
   --spacing 2,2,2 \
   --size 128,160,128 \
   --batch 1 \
-  --workers 8 \
+  --workers 4 \
   --train_val_split 0.1 \
   --stage both \
   --ae_epochs 100 \
@@ -179,7 +194,7 @@ python scripts/train_3d_brain_ldm.py \
   --spacing 1,1,1 \
   --size 192,224,192 \
   --batch 1 \
-  --workers 8 \
+  --workers 4 \
   --train_val_split 0.1 \
   --stage both \
   --ae_epochs 100 \
@@ -197,7 +212,7 @@ python scripts/train_3d_brain_ldm.py \
   --spacing 1,1,1 \
   --size 192,224,192 \
   --batch 1 \
-  --workers 8 \
+  --workers 4 \
   --train_val_split 0.1 \
   --stage both \
   --ae_epochs 100 \
@@ -215,7 +230,7 @@ python scripts/train_3d_brain_ldm.py \
   --spacing 1,1,1 \
   --size 192,224,192 \
   --batch 1 \
-  --workers 8 \
+  --workers 4 \
   --train_val_split 0.1 \
   --stage both \
   --ae_epochs 100 \
@@ -233,7 +248,7 @@ python scripts/train_3d_brain_ldm.py \
   --spacing 1,1,1 \
   --size 192,224,192 \
   --batch 1 \
-  --workers 8 \
+  --workers 4 \
   --train_val_split 0.1 \
   --stage both \
   --ae_epochs 100 \
@@ -251,7 +266,7 @@ python scripts/train_3d_brain_ldm.py \
   --spacing 1,1,1 \
   --size 192,224,192 \
   --batch 1 \
-  --workers 8 \
+  --workers 4 \
   --train_val_split 0.1 \
   --stage both \
   --ae_epochs 100 \
@@ -261,3 +276,179 @@ python scripts/train_3d_brain_ldm.py \
   --ldm_num_head_channels 0,64,64 \
   --ldm_sample_every 25
 </pre>
+
+
+### 11/17/25 Tracy's experiments
+
+#### 
+python scripts/train_3d_brain_ldm.py \
+  --csv data/left_hemi_data_1114.csv \
+  --spacing 2,2,2 \
+  --size 96,128,96 \
+  --batch 1 \
+  --workers 0 \
+  --train_val_split 0.1 \
+  --stage both \
+  --ae_epochs 100 \
+  --ae_num_channels 64,128,256,512 \
+  --ldm_epochs 150 \
+  --ldm_num_channels 128,256,512 \
+  --ldm_num_head_channels 0,64,64 \
+  --ldm_sample_every 25
+
+python scripts/train_3d_brain_ldm.py \
+  --csv data/cerebellum_data_1114.csv \
+  --spacing 2,2,2 \
+  --size 96,128,96 \
+  --batch 1 \
+  --workers 0 \
+  --train_val_split 0.1 \
+  --stage both \
+  --ae_epochs 100 \
+  --ae_num_channels 64,128,256,512 \
+  --ae_ckpt ckpts/brain_parts_runs_20251118/run_whole_brain_recon_20251117_190756/AE_best.pt \
+  --ldm_epochs 150 \
+  --ldm_num_channels 128,256,512 \
+  --ldm_num_head_channels 0,64,64 \
+  --ldm_sample_every 25 \
+  --out_prefix cerebellum_from_whole_brain_AE
+
+
+python scripts/3dgen_eval.py \
+  --csv data/whole_brain_data_1114.csv \
+  --generate_n_samples 300 \
+  --spacing 2,2,2 \
+  --size 96,128,96 \
+  --batch 1 \
+  --workers 0 \
+  --train_val_split 0.1 \
+  --ae_num_channels 64,128,256,512 \
+  --ae_ckpt ckpts/run_20251117_190756/AE_best.pt \
+  --ldm_num_channels 128,256,512 \
+  --ldm_num_head_channels 0,64,64 \
+  --ldm_ckpt ckpts/run_20251118_030349/UNET_last.pt
+
+
+python scripts/3dgen_eval.py \
+  --csv data/whole_brain_data_1114.csv \
+  --generate_n_samples 0 \
+  --spacing 2,2,2 \
+  --size 96,128,96 \
+  --batch 2 \
+  --workers 0 \
+  --train_val_split 0.1 \
+  --ae_num_channels 64,128,256,512 \
+  --ae_ckpt ckpts/run_20251117_190756/AE_best.pt \
+  --ldm_num_channels 128,256,512 \
+  --ldm_num_head_channels 0,64,64 \
+  --ldm_ckpt ckpts/run_20251118_030349/UNET_last.pt
+
+
+python scripts/3dgen_eval.py \
+  --csv data/whole_brain_data_1114.csv \
+  --generate_n_samples 0 \
+  --spacing 2,2,2 \
+  --size 96,128,96 \
+  --batch 2 \
+  --workers 0 \
+  --train_val_split 0.1 \
+  --ae_num_channels 64,128,256,512 \
+  --ae_ckpt ckpts/brain_parts_runs_20251118/run_20251118_154755/AE_best.pt \
+  --ldm_num_channels 128,256,512 \
+  --ldm_num_head_channels 0,64,64 \
+  --ldm_ckpt ckpts/brain_parts_runs_20251118/run_20251118_154755/UNET_last.pt
+
+
+### 11/23 Tracy's experiment
+
+python scripts/train_3d_brain_ldm.py \
+  --csv data/cerebellum_data_1114.csv \
+  --spacing 2,2,2 \
+  --size 96,128,96 \
+  --batch 1 \
+  --workers 0 \
+  --train_val_split 0.1 \
+  --stage both \
+  --ae_epochs 100 \
+  --ae_num_channels 64,128,256,512 \
+  --ae_ckpt ckpts/brain_parts_runs_20251118/run_whole_brain_recon_20251117_190756/AE_best.pt \
+  --ldm_epochs 150 \
+  --ldm_num_channels 128,256,512 \
+  --ldm_num_head_channels 0,64,64 \
+  --ldm_sample_every 25 \
+  --out_prefix cerebellum_from_whole_brain_AE
+
+python scripts/train_3d_brain_ldm.py \
+  --csv data/cerebellum_data_1114.csv \
+  --spacing 2,2,2 \
+  --size 96,128,96 \
+  --batch 1 \
+  --workers 0 \
+  --train_val_split 0.1 \
+  --stage ldm \
+  --ae_epochs 0 \
+  --ae_num_channels 64,128,256,512 \
+  --ae_ckpt ckpts/run_cerebellum_from_whole_brain_AE_20251123_231609/AE_best.pt \
+  --ldm_epochs 150 \
+  --ldm_num_channels 128,256,512 \
+  --ldm_num_head_channels 0,64,64 \
+  --ldm_sample_every 25 \
+  --out_prefix cerebellum_from_whole_brain_AE
+
+
+### 11/28 Tracy's on conditional ldm
+
+python scripts/train_3d_brain_ldm_cond.py \
+  --csv data/cond_data_5parts_exp.csv \
+  --spacing 2,2,2 \
+  --size 96,128,96 \
+  --batch 1 \
+  --workers 0 \
+  --train_val_split 0.1 \
+  --stage ldm \
+  --ae_epochs 1 \
+  --ae_ckpt ckpts/run_cond_5parts_gen_exp_20251129_144532/AE_best.pt \
+  --ae_num_channels 64,128,256,512 \
+  --ldm_epochs 1000 \
+  --ldm_ckpt ckpts/run_cond_5parts_gen_exp_20251129_031258/UNET_last.pt \
+  --ldm_num_parts 5 \
+  --ldm_num_channels 128,256,512 \
+  --ldm_num_head_channels 0,64,64 \
+  --ldm_sample_every 200 \
+  --out_prefix cond_5parts_gen_exp
+
+
+python scripts/train_3d_brain_ldm_cond.py \
+  --csv data/cond_data_2parts_exp.csv \
+  --spacing 2,2,2 \
+  --size 96,128,96 \
+  --batch 1 \
+  --workers 0 \
+  --train_val_split 0.1 \
+  --stage both \
+  --ae_epochs 500 \
+  --ae_num_channels 64,128,256,512 \
+  --ldm_epochs 1000 \
+  --ldm_num_parts 2 \
+  --ldm_num_channels 128,256,512 \
+  --ldm_num_head_channels 0,64,64 \
+  --ldm_sample_every 200 \
+  --out_prefix cond_2parts_gen_exp
+
+
+python scripts/train_3d_brain_ldm_cond.py \
+  --csv data/cond_data_3parts_exp_1201.csv \
+  --spacing 2,2,2 \
+  --size 96,128,96 \
+  --batch 1 \
+  --workers 0 \
+  --train_val_split 0.1 \
+  --stage both \
+  --ae_epochs 500 \
+  --ae_num_channels 64,128,256,512 \
+  --ldm_epochs 1000 \
+  --ldm_num_parts 2 \
+  --ldm_num_channels 128,256,512 \
+  --ldm_num_head_channels 0,64,64 \
+  --ldm_sample_every 200 \
+  --out_prefix cond_3parts_gen_exp
