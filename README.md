@@ -1,0 +1,157 @@
+`cd <PROJECT_DIR>`
+<pre>
+docker run --gpus all -it   -v "$PWD":/workspace   -w /workspace   h8w108/3dbrain:parts_ldm_20251013  bash
+</pre>
+
+###  If encountering conda init issue
+Load conda’s bash hook for this shell
+<pre>
+source /opt/conda/etc/profile.d/conda.sh  \
+  || eval "$(/opt/conda/bin/conda shell.bash hook)"
+</pre>
+
+# Experiments
+
+## 01/08/26
+
+### Download dataset from huggingface
+https://huggingface.co/datasets/tracyhan816/ADNI_subset
+
+### Preprocess data
+`python data_prep/prep_data.py`
+
+### 3D LDM baseline experiments
+#### Whole brain
+<pre>
+python scripts/train_3d_brain_ldm_.py \
+  --csv data/whole_brain_0107.csv \
+  --spacing 2,2,2 \
+  --size 96,128,96 \
+  --batch 1 \
+  --workers 0 \
+  --train_val_split 0.1 \
+  --stage both \
+  --ae_epochs 100 \
+  --ae_num_channels 64,128,256,512 \
+  --ldm_epochs 150 \
+  --ldm_num_channels 128,256,512 \
+  --ldm_num_head_channels 0,64,64 \
+  --ldm_sample_every 10 \
+  --out_prefix whole_brain_LDM_fixed_scale_0107
+</pre>
+
+#### Left hemi
+<pre>
+python scripts/train_3d_brain_ldm_.py \
+  --csv data/lhemi_0107.csv \
+  --spacing 2,2,2 \
+  --size 96,128,96 \
+  --batch 1 \
+  --workers 0 \
+  --train_val_split 0.1 \
+  --stage both \
+  --ae_epochs 100 \
+  --ae_num_channels 64,128,256,512 \
+  --ldm_epochs 150 \
+  --ldm_num_channels 128,256,512 \
+  --ldm_num_head_channels 0,64,64 \
+  --ldm_sample_every 10 \
+  --out_prefix lhemi_LDM_fixed_scale_0107
+</pre>
+
+#### Right hemi
+<pre>
+python scripts/train_3d_brain_ldm_.py \
+  --csv data/rhemi_0107.csv \
+  --spacing 2,2,2 \
+  --size 96,128,96 \
+  --batch 1 \
+  --workers 0 \
+  --train_val_split 0.1 \
+  --stage both \
+  --ae_epochs 100 \
+  --ae_num_channels 64,128,256,512 \
+  --ldm_epochs 150 \
+  --ldm_num_channels 128,256,512 \
+  --ldm_num_head_channels 0,64,64 \
+  --ldm_sample_every 10 \
+  --out_prefix rhemi_LDM_fixed_scale_0107
+</pre>
+
+#### Cerebellum
+<pre>
+python scripts/train_3d_brain_ldm_.py \
+  --csv data/cerebellum_0107.csv \
+  --spacing 2,2,2 \
+  --size 96,128,96 \
+  --batch 1 \
+  --workers 0 \
+  --train_val_split 0.1 \
+  --stage both \
+  --ae_epochs 100 \
+  --ae_num_channels 64,128,256,512 \
+  --ldm_epochs 150 \
+  --ldm_num_channels 128,256,512 \
+  --ldm_num_head_channels 0,64,64 \
+  --ldm_sample_every 10 \
+  --out_prefix cerebellum_LDM_fixed_scale_0107
+</pre>
+
+
+### 3D cLDM experiments
+#### Whole brain
+<pre>
+python scripts/train_3d_brain_cond_ldm.py \
+  --csv data/whole_brain_0107.csv \
+  --spacing 2,2,2 \
+  --size 96,128,96 \
+  --batch 1 \
+  --workers 0 \
+  --train_val_split 0.1 \
+  --stage both \
+  --ae_epochs 100 \
+  --ae_num_channels 64,128,256,512 \
+  --ldm_epochs 150 \
+  --ldm_num_channels 128,256,512 \
+  --ldm_num_head_channels 0,64,64 \
+  --ldm_sample_every 10 \
+  --out_prefix whole_brain_cLDM_fixed_scale_0107
+</pre>
+
+#### Left hemi
+<pre>
+python scripts/train_3d_brain_cond_ldm.py \
+  --csv data/lhemi_0107.csv \
+  --spacing 2,2,2 \
+  --size 96,128,96 \
+  --batch 1 \
+  --workers 0 \
+  --train_val_split 0.1 \
+  --stage both \
+  --ae_epochs 100 \
+  --ae_num_channels 64,128,256,512 \
+  --ldm_epochs 150 \
+  --ldm_num_channels 128,256,512 \
+  --ldm_num_head_channels 0,64,64 \
+  --ldm_sample_every 10 \
+  --out_prefix lhemi_cLDM_fixed_scale_0107
+</pre>
+
+#### Right hemi
+<pre>
+python scripts/train_3d_brain_cond_ldm.py \
+  --csv data/rhemi_0107.csv \
+  --spacing 2,2,2 \
+  --size 96,128,96 \
+  --batch 1 \
+  --workers 0 \
+  --train_val_split 0.1 \
+  --stage both \
+  --ae_epochs 100 \
+  --ae_num_channels 64,128,256,512 \
+  --ldm_epochs 150 \
+  --ldm_num_channels 128,256,512 \
+  --ldm_num_head_channels 0,64,64 \
+  --ldm_sample_every 10 \
+  --out_prefix rhemi_cLDM_fixed_scale_0107
+</pre>
