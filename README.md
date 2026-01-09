@@ -17,6 +17,8 @@ source /opt/conda/etc/profile.d/conda.sh  \
 ### Download dataset from huggingface
 https://huggingface.co/datasets/tracyhan816/ADNI_subset
 
+... place the dataset under /data -> `data/turboprep_out_1114`
+
 ### Preprocess data
 `python data_prep/prep_data.py`
 
