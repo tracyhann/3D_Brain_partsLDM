@@ -171,6 +171,7 @@ python scripts/train_3d_brain_cond_ldm.py \
   --ae_epochs 100 \
   --ae_num_channels 64,128,256,512 \
   --ldm_epochs 150 \
+  --ldm_lr 1e-5 \
   --ldm_num_channels 128,256,512 \
   --ldm_num_head_channels 0,64,64 \
   --ldm_sample_every 10 \
