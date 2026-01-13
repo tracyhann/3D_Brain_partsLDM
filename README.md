@@ -177,3 +177,93 @@ python scripts/train_3d_brain_cond_ldm.py \
   --ldm_sample_every 10 \
   --out_prefix cerebellum_cLDM_fixed_scale_0107
 </pre>
+
+## 01/12/26
+#### Cerebellum; 450 samples; AE and UNET @ lr=1e-5
+<pre>
+python scripts/train_3d_brain_ldm_.py \
+  --csv data/cerebellum_0107.csv \
+  --spacing 2,2,2 \
+  --size 96,128,96 \
+  --batch 1 \
+  --n_samples ALL \
+  --workers 0 \
+  --train_val_split 0.1 \
+  --stage both \
+  --ae_epochs 100 \
+  --ae_lr 1e-5 \
+  --ae_num_channels 64,128,256,512 \
+  --ldm_epochs 150 \
+  --ldm_lr 1e-5 \
+  --ldm_num_channels 128,256,512 \
+  --ldm_num_head_channels 0,64,64 \
+  --ldm_sample_every 1 \
+  --out_prefix cerebellum_LDM_fixed_scale_0107_1e-5_450
+</pre>
+
+#### Cerebellum; 100 samples; AE and UNET @ lr=1e-5
+<pre>
+python scripts/train_3d_brain_ldm_.py \
+  --csv data/cerebellum_0107.csv \
+  --spacing 2,2,2 \
+  --size 96,128,96 \
+  --batch 1 \
+  --n_samples 100 \
+  --workers 0 \
+  --train_val_split 0.1 \
+  --stage both \
+  --ae_epochs 100 \
+  --ae_lr 1e-5 \
+  --ae_num_channels 64,128,256,512 \
+  --ldm_epochs 150 \
+  --ldm_lr 1e-5 \
+  --ldm_num_channels 128,256,512 \
+  --ldm_num_head_channels 0,64,64 \
+  --ldm_sample_every 1 \
+  --out_prefix cerebellum_LDM_fixed_scale_0107_1e-5_100
+</pre>
+
+
+#### Cerebellum; 100 samples; AE and UNET @ lr=1e-6
+<pre>
+python scripts/train_3d_brain_ldm_.py \
+  --csv data/cerebellum_0107.csv \
+  --spacing 2,2,2 \
+  --size 96,128,96 \
+  --batch 1 \
+  --n_samples 100 \
+  --workers 0 \
+  --train_val_split 0.1 \
+  --stage both \
+  --ae_epochs 100 \
+  --ae_lr 1e-6 \
+  --ae_num_channels 64,128,256,512 \
+  --ldm_epochs 150 \
+  --ldm_lr 1e-6 \
+  --ldm_num_channels 128,256,512 \
+  --ldm_num_head_channels 0,64,64 \
+  --ldm_sample_every 1 \
+  --out_prefix cerebellum_LDM_fixed_scale_0107_1e-6_100
+</pre>
+
+#### Cerebellum; 450 samples; AE and UNET @ lr=1e-6
+<pre>
+python scripts/train_3d_brain_ldm_.py \
+  --csv data/cerebellum_0107.csv \
+  --spacing 2,2,2 \
+  --size 96,128,96 \
+  --batch 1 \
+  --n_samples ALL \
+  --workers 0 \
+  --train_val_split 0.1 \
+  --stage both \
+  --ae_epochs 100 \
+  --ae_lr 1e-6 \
+  --ae_num_channels 64,128,256,512 \
+  --ldm_epochs 150 \
+  --ldm_lr 1e-6 \
+  --ldm_num_channels 128,256,512 \
+  --ldm_num_head_channels 0,64,64 \
+  --ldm_sample_every 1 \
+  --out_prefix cerebellum_LDM_fixed_scale_0107_1e-6_450
+</pre>
