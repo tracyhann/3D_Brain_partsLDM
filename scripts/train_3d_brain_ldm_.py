@@ -57,7 +57,7 @@ seed_all(1017)
 
 
 def make_dataloaders_from_csv(csv_path, conditions = ['age', 'sex', 'vol'], train_transforms = None,
-                              train_val_split = 0.1, batch_size = 1, num_workers=8, seed = 1017):
+                              n_samples = None, train_val_split = 0.1, batch_size = 1, num_workers=8, seed = 1017):
     #Make a list of dicts. Keys must match your transforms.
     #images = sorted(glob("data/ADNI_turboprepout_whole_brain/*.nii.gz")) 
     #labels = sorted(glob("/data/ct/labelsTr/*.nii.gz"))
@@ -66,6 +66,8 @@ def make_dataloaders_from_csv(csv_path, conditions = ['age', 'sex', 'vol'], trai
     df = pd.read_csv(csv_path)
     data = []
     for i, row in df.iterrows():
+        if i == n_samples:
+            break
         sample = {}
         sample['image'] = row['image']
         for c in conditions:
@@ -406,6 +408,7 @@ def main():
     ap.add_argument("--size", default="160,224,160", help="Volume D,H,W (e.g., 160,224,160)")
     ap.add_argument("--batch", type=int, default=1)
     ap.add_argument("--workers", type=int, default=8)
+    ap.add_argument("--n_samples", default="ALL")
     ap.add_argument("--train_val_split", type=float, default=0.1)
 
 
@@ -486,8 +489,13 @@ def main():
     random.seed(1017)
     seed_all(1017)
 
+    try:
+        n_samples = int(args.n_samples)
+    except:
+        n_samples = args.n_samples
     train_loader, val_loader = make_dataloaders_from_csv(args.csv, conditions = ['age', 'sex', 'vol'], train_transforms = train_transforms,
-                                train_val_split = args.train_val_split, batch_size = args.batch, num_workers=args.workers, seed = 1017)
+                                                         n_samples=n_samples, train_val_split = args.train_val_split, batch_size = args.batch, 
+                                                         num_workers=args.workers, seed = 1017)
 
     ae_num_channels = tuple(int(x) for x in args.ae_num_channels.split(","))
     ae_latent_ch = int(args.ae_latent_ch)
