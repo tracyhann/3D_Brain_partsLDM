@@ -25,7 +25,7 @@ Part names: {lhemi, rhemi, whole_brain, cerebellum}
 
 <pre>
   python scripts/3dgen_eval.py \
-  --csv data/<PART_NAME>_0107.csv \
+  --csv data/{PART_NAME}_0107.csv \
   --generate_n_samples 300 \
   --spacing 2,2,2 \
   --size 96,128,96 \
@@ -33,11 +33,11 @@ Part names: {lhemi, rhemi, whole_brain, cerebellum}
   --workers 0 \
   --train_val_split 0.1 \
   --ae_num_channels 64,128,256,512 \
-  --ae_ckpt ckpts/<FOLDER>/AE_best.pt \
+  --ae_ckpt ckpts/{FOLDER}/AE_best.pt \
   --ldm_num_channels 128,256,512 \
   --ldm_num_head_channels 0,64,64 \
-  --ldm_ckpt ckpts/<FOLDER>/UNET_last.pt \
-  --outdir samples/brain_parts_runs_20260113/<PART_NAME>
+  --ldm_ckpt ckpts/{FOLDER}/UNET_last.pt \
+  --outdir samples/brain_parts_runs_20260113/{PART_NAME}
 </pre>
 
 # Experiments
