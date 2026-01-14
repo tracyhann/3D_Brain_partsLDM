@@ -10,6 +10,36 @@ source /opt/conda/etc/profile.d/conda.sh  \
   || eval "$(/opt/conda/bin/conda shell.bash hook)"
 </pre>
 
+# Inference & Eval
+
+## 01/14/26
+The script will generate 300 samples, saved in nifti files, and run evaluations.
+### Fill in path to ckpts for both AE and LDM; make sure data csv path is correct as well.
+Data csvs:
+- lhemi_0107.csv
+- rhemi_0107.csv
+- whole_brain_0107.csv
+- cerebellum_0107.csv
+
+Part names: {lhemi, rhemi, whole_brain, cerebellum}
+
+<pre>
+  python scripts/3dgen_eval.py \
+  --csv data/<PART_NAME>_0107.csv \
+  --generate_n_samples 300 \
+  --spacing 2,2,2 \
+  --size 96,128,96 \
+  --batch 2 \
+  --workers 0 \
+  --train_val_split 0.1 \
+  --ae_num_channels 64,128,256,512 \
+  --ae_ckpt ckpts/<FOLDER>/AE_best.pt \
+  --ldm_num_channels 128,256,512 \
+  --ldm_num_head_channels 0,64,64 \
+  --ldm_ckpt ckpts/<FOLDER>/UNET_last.pt \
+  --outdir samples/brain_parts_runs_20260113/<PART_NAME>
+</pre>
+
 # Experiments
 
 ## 01/08/26
