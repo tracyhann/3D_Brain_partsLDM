@@ -445,7 +445,7 @@ def save_masks_nifti(
 
 
 def build_proto1_from_batch(batch, bg_val: float = -1.0,
-                            r_int: int = 2, r_seam: int = 4, save_example = True):
+                            r_int: int = 2, r_seam: int = 4, save_example = False):
     """
     Returns:
       cond_img: [B, Ccond, 96,128,96]  (image-space cond)
