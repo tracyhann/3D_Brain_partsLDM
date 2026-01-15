@@ -401,3 +401,47 @@ python scripts/train_3d_brain_ldm_ctcrop.py \
   --ldm_sample_every 1 \
   --out_prefix cerebellum_0107_ctcrop_100
 </pre>
+
+## 01/14/2023 
+### Updates: Cerebellum AE @ lr = 1e-4 and UNET @ lr = 1e-6 worked on 100 samples
+<pre>
+python scripts/train_3d_brain_ldm_.py \
+  --csv data/cerebellum_0107.csv \
+  --spacing 2,2,2 \
+  --size 96,128,96 \
+  --batch 1 \
+  --n_samples ALL \
+  --workers 0 \
+  --train_val_split 0.1 \
+  --stage both \
+  --ae_epochs 100 \
+  --ae_lr 1e-4 \
+  --ae_num_channels 64,128,256,512 \
+  --ldm_epochs 150 \
+  --ldm_lr 1e-6 \
+  --ldm_num_channels 128,256,512 \
+  --ldm_num_head_channels 0,64,64 \
+  --ldm_sample_every 1 \
+  --out_prefix cerebellum_LDM_fixed_scale_0107_1e-6_450
+</pre>
+
+<pre>
+python scripts/train_3d_brain_ldm_.py \
+  --csv data/cerebellum_0107.csv \
+  --spacing 2,2,2 \
+  --size 96,128,96 \
+  --batch 1 \
+  --n_samples ALL \
+  --workers 0 \
+  --train_val_split 0.1 \
+  --stage both \
+  --ae_epochs 100 \
+  --ae_lr 1e-4 \
+  --ae_num_channels 64,128,256,512 \
+  --ldm_epochs 150 \
+  --ldm_lr 1e-5 \
+  --ldm_num_channels 128,256,512 \
+  --ldm_num_head_channels 0,64,64 \
+  --ldm_sample_every 1 \
+  --out_prefix cerebellum_LDM_fixed_scale_0107_1e-6_450
+</pre>
