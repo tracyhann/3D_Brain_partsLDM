@@ -422,7 +422,7 @@ python scripts/train_3d_brain_ldm_.py \
   --ldm_num_channels 128,256,512 \
   --ldm_num_head_channels 0,64,64 \
   --ldm_sample_every 1 \
-  --out_prefix cerebellum_LDM_fixed_scale_0107_1e-6_450
+  --out_prefix cerebellum_LDM_fixed_scale_0107_ldm1e-6_450
 </pre>
 
 <pre>
@@ -443,5 +443,5 @@ python scripts/train_3d_brain_ldm_.py \
   --ldm_num_channels 128,256,512 \
   --ldm_num_head_channels 0,64,64 \
   --ldm_sample_every 1 \
-  --out_prefix cerebellum_LDM_fixed_scale_0107_1e-5_450
+  --out_prefix cerebellum_LDM_fixed_scale_0107_ldm1e-5_450
 </pre>
