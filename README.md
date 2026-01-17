@@ -402,7 +402,7 @@ python scripts/train_3d_brain_ldm_ctcrop.py \
   --out_prefix cerebellum_0107_ctcrop_100
 </pre>
 
-## 01/14/2023 
+## 01/14/2026 
 ### Updates: Cerebellum AE @ lr = 1e-4 and UNET @ lr = 1e-6 worked on 100 samples
 <pre>
 python scripts/train_3d_brain_ldm_.py \
@@ -446,7 +446,7 @@ python scripts/train_3d_brain_ldm_.py \
   --out_prefix cerebellum_LDM_fixed_scale_0107_ldm1e-5_450
 </pre>
 
-##01/15/2026
+## 01/15/2026
 
 ### Train fusion model from coarse compose
 <pre>
@@ -510,4 +510,50 @@ python scripts/train_3d_brain_ldm_from_coarse.py \
   --ldm_num_head_channels 0,64,64 \
   --ldm_sample_every 10 \
   --out_prefix whole_brain_coarse_uncond_CLAMP_1e-6_450
+</pre>
+
+## 01/17/26
+### 3D cLDM experiments
+- Right hemispheres struggled to be learned in the previous experiments, but left hemisphere were fine.
+
+#### Right hemi; UNet lr=1e-6
+<pre>
+python scripts/train_3d_brain_cond_ldm.py \
+  --csv data/rhemi_0107.csv \
+  --spacing 2,2,2 \
+  --size 96,128,96 \
+  --batch 1 \
+  --workers 0 \
+  --train_val_split 0.1 \
+  --stage ldm \
+  --ae_epochs 1 \
+  --ae_ckpt ckpts/run_rhemi_cLDM_fixed_scale_0107_20260112_063405/AE_best.pt \
+  --ae_num_channels 64,128,256,512 \
+  --ldm_epochs 150 \
+  --ldm_lr 1e-6 \
+  --ldm_num_channels 128,256,512 \
+  --ldm_num_head_channels 0,64,64 \
+  --ldm_sample_every 10 \
+  --out_prefix rhemi_cLDM_ldm1e-6_0107
+</pre>
+
+#### Right hemi; UNet lr = 1e-5
+<pre>
+python scripts/train_3d_brain_cond_ldm.py \
+  --csv data/rhemi_0107.csv \
+  --spacing 2,2,2 \
+  --size 96,128,96 \
+  --batch 1 \
+  --workers 0 \
+  --train_val_split 0.1 \
+  --stage ldm \
+  --ae_epochs 1 \
+  --ae_ckpt ckpts/run_rhemi_cLDM_fixed_scale_0107_20260112_063405/AE_best.pt \
+  --ae_num_channels 64,128,256,512 \
+  --ldm_epochs 150 \
+  --ldm_lr 1e-5 \
+  --ldm_num_channels 128,256,512 \
+  --ldm_num_head_channels 0,64,64 \
+  --ldm_sample_every 10 \
+  --out_prefix rhemi_cLDM_ldm1e-5_0107
 </pre>
