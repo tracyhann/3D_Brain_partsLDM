@@ -589,7 +589,6 @@ python scripts/train_3d_brain_mirror_ldm.py \
   --stage both \
   --ae_epochs 100 \
   --ae_num_channels 64,128,256,512 \
-  --ae_ckpt ckpts/run_left_right_paired_100_20260121_061832/AE_last.pt \
   --ldm_epochs 150 \
   --ldm_lr 1e-4 \
   --ldm_num_channels 128,256,512 \
@@ -612,7 +611,6 @@ python scripts/train_3d_brain_mirror_ldm.py \
   --stage both \
   --ae_epochs 100 \
   --ae_num_channels 64,128,256,512 \
-  --ae_ckpt ckpts/run_left_right_paired_100_20260121_061832/AE_last.pt \
   --ldm_epochs 150 \
   --ldm_lr 1e-4 \
   --ldm_num_channels 128,256,512 \
@@ -635,7 +633,6 @@ python scripts/train_3d_brain_mirror_ldm.py \
   --stage both \
   --ae_epochs 100 \
   --ae_num_channels 64,128,256,512 \
-  --ae_ckpt ckpts/run_left_right_paired_100_20260121_061832/AE_last.pt \
   --ldm_epochs 150 \
   --ldm_lr 1e-5 \
   --ldm_num_channels 128,256,512 \
