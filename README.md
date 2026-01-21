@@ -557,3 +557,16 @@ python scripts/train_3d_brain_cond_ldm.py \
   --ldm_sample_every 10 \
   --out_prefix rhemi_cLDM_ldm1e-5_0107
 </pre>
+
+
+## 01/20/26
+### Mirrored LDM (CONCAT + CROSSATTN conditioning)
+- The brain is overall symmetrical with subtle differences giving rise to functional specialization.
+#### Generate mirroring brain data 
+<pre>
+  python data_prep/prep_data.py \
+  --part left,right,right_mirror,whole_brain \
+  --postfix 0120
+</pre>
+#### Generate data csv file.
+
