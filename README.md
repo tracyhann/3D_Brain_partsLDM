@@ -575,7 +575,7 @@ python scripts/train_3d_brain_cond_ldm.py \
 
 #### Train LDM on paired images
 
-- Train at spacing = 2,2,2; lr = 1e-4
+- Train at spacing = `2,2,2`; lr = `1e-4`
 
 <pre>
 python scripts/train_3d_brain_mirror_ldm.py \
@@ -597,7 +597,8 @@ python scripts/train_3d_brain_mirror_ldm.py \
   --out_prefix left_right_paired_450
 </pre>
 
-- Train at spacing = 1,1,1; lr = 1e-4
+- Train at spacing = `1,1,1`; lr = `1e-4`
+- If OOM, adjust spacing; can try `1.2,1.2,1.2`, etc.
 
 <pre>
 python scripts/train_3d_brain_mirror_ldm.py \
@@ -619,7 +620,7 @@ python scripts/train_3d_brain_mirror_ldm.py \
   --out_prefix left_right_paired_450
 </pre>
 
-- Train at spacing = 1,1,1; lr = 1e-5
+- Train at spacing = `1,1,1`; lr = `1e-5`
 
 <pre>
 python scripts/train_3d_brain_mirror_ldm.py \
