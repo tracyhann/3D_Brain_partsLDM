@@ -569,4 +569,77 @@ python scripts/train_3d_brain_cond_ldm.py \
   --postfix 0120
 </pre>
 #### Generate data csv file.
+<pre>
+  python data_prep/pair_mirrored_LR_csv.py
+</pre>
 
+#### Train LDM on paired images
+
+- Train at spacing = 2,2,2; lr = 1e-4
+
+<pre>
+python scripts/train_3d_brain_mirror_ldm.py \
+  --csv data/left_right_paired_0120.csv \
+  --spacing 2,2,2 \
+  --size 96,128,96 \
+  --n_samples ALL \
+  --batch 1 \
+  --workers 0 \
+  --train_val_split 0.1 \
+  --stage both \
+  --ae_epochs 100 \
+  --ae_num_channels 64,128,256,512 \
+  --ae_ckpt ckpts/run_left_right_paired_100_20260121_061832/AE_last.pt \
+  --ldm_epochs 150 \
+  --ldm_lr 1e-4 \
+  --ldm_num_channels 128,256,512 \
+  --ldm_num_head_channels 0,64,64 \
+  --ldm_sample_every 10 \
+  --out_prefix left_right_paired_450
+</pre>
+
+- Train at spacing = 1,1,1; lr = 1e-4
+
+<pre>
+python scripts/train_3d_brain_mirror_ldm.py \
+  --csv data/left_right_paired_0120.csv \
+  --spacing 1,1,1 \
+  --size 96,128,96 \
+  --n_samples ALL \
+  --batch 1 \
+  --workers 0 \
+  --train_val_split 0.1 \
+  --stage both \
+  --ae_epochs 100 \
+  --ae_num_channels 64,128,256,512 \
+  --ae_ckpt ckpts/run_left_right_paired_100_20260121_061832/AE_last.pt \
+  --ldm_epochs 150 \
+  --ldm_lr 1e-4 \
+  --ldm_num_channels 128,256,512 \
+  --ldm_num_head_channels 0,64,64 \
+  --ldm_sample_every 10 \
+  --out_prefix left_right_paired_450
+</pre>
+
+- Train at spacing = 1,1,1; lr = 1e-5
+
+<pre>
+python scripts/train_3d_brain_mirror_ldm.py \
+  --csv data/left_right_paired_0120.csv \
+  --spacing 1,1,1 \
+  --size 96,128,96 \
+  --n_samples ALL \
+  --batch 1 \
+  --workers 0 \
+  --train_val_split 0.1 \
+  --stage both \
+  --ae_epochs 100 \
+  --ae_num_channels 64,128,256,512 \
+  --ae_ckpt ckpts/run_left_right_paired_100_20260121_061832/AE_last.pt \
+  --ldm_epochs 150 \
+  --ldm_lr 1e-5 \
+  --ldm_num_channels 128,256,512 \
+  --ldm_num_head_channels 0,64,64 \
+  --ldm_sample_every 10 \
+  --out_prefix left_right_paired_450
+</pre>
