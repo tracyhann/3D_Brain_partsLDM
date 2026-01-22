@@ -336,6 +336,7 @@ class CovariateConditioner(nn.Module):
       volume: [B] float (normalized recommended)
       sex:    [B] long  in {0,1,2}
       group:  [B] long  in {0,1,2,3,4,5}
+      symetry:[B] long  in {0,1}
 
     Returns:
       ctx: [B, 1, d_model]
@@ -345,18 +346,20 @@ class CovariateConditioner(nn.Module):
         d_model: int = 128,
         d_cat: int = 16,
         n_sex: int = 3,
+        n_symetry: int = 2,
         n_groups: int = 6,
         p_drop: float = 0.1,
     ):
         super().__init__()
         self.n_sex = n_sex
         self.n_groups = n_groups
+        self.n_symetry = n_symetry
         self.d_model = d_model
 
         # categorical embeddings
         self.sex_emb = nn.Embedding(n_sex, d_cat)
         self.group_emb = nn.Embedding(n_groups, d_cat)
-
+        self.symetry_emb = nn.Embedding(n_symetry, d_cat)
         # continuous features -> d_model
         self.num_mlp = nn.Sequential(
             nn.Linear(2, 64),
@@ -366,7 +369,7 @@ class CovariateConditioner(nn.Module):
 
         # fuse (num + cat) -> d_model
         self.fuse = nn.Sequential(
-            nn.Linear(d_model + 2 * d_cat, d_model),
+            nn.Linear(d_model + 3 * d_cat, d_model),
             nn.SiLU(),
             nn.Linear(d_model, d_model),
         )
@@ -374,12 +377,13 @@ class CovariateConditioner(nn.Module):
         self.norm = nn.LayerNorm(d_model)
         self.drop = nn.Dropout(p_drop)
 
-    def forward(self, age, sex, group, volume):
+    def forward(self, age, sex, group, volume, symetry):
         # flatten to [B]
         age = age.float().view(-1)
         volume = volume.float().view(-1)
         sex = sex.long().view(-1)
         group = group.long().view(-1)
+        symetry = symetry.long().view(-1)
 
         # sanity checks (cheap, helps catch silent bugs)
         if torch.any(sex < 0) or torch.any(sex >= self.n_sex):
@@ -393,9 +397,10 @@ class CovariateConditioner(nn.Module):
 
         # categorical -> features
         cat_feat = torch.cat(
-            [self.sex_emb(sex), self.group_emb(group)],
+            [self.sex_emb(sex), self.group_emb(group), self.symetry_emb(symetry)],
             dim=1
-        )                                           # [B,2*d_cat]
+        )                                           # [B,3*d_cat]
+
 
         # fuse -> context token
         ctx = self.fuse(torch.cat([num_feat, cat_feat], dim=1))  # [B,d_model]
@@ -411,7 +416,7 @@ def sample_ldm_conditioner(
     device,
     conditioner,  
     latent_shape,               
-    age=None, sex=None, group=None, volume=None,  # <-- either pass explicit values OR read from batch
+    age=None, sex=None, group=None, volume=None, symetry=None, # <-- either pass explicit values OR read from batch
     pairs=None,
     cfg_scale: float = 3.0,      # <-- guidance strength (0 disables CFG)
     num_inference_steps: int = 1000,
@@ -435,11 +440,12 @@ def sample_ldm_conditioner(
     volume = volume.to(device).float().view(-1)
     sex = sex.to(device).long().view(-1)
     group = group.to(device).long().view(-1)
+    symetry = symetry.to(device).long().view(-1)
 
     # IMPORTANT: ctx batch size must match noise batch size.
     # Sample with batch size = latent_shape[0], so ctx must be [B,1,d_model] with same B.
     with torch.no_grad():
-        ctx = conditioner(age=age, sex=sex, group=group, volume=volume)  # [B,1,d_model]
+        ctx = conditioner(age=age, sex=sex, group=group, volume=volume, symetry=symetry)  # [B,1,d_model]
         if pairs is not None:
             z_pairs = autoencoder.encode_stage_2_inputs(pairs.to(device)) * inferer.scale_factor
         else:
@@ -484,7 +490,7 @@ def train_ldm(unet, conditioner, train_loader, autoencoder, ldm_epochs = 150,
     scheduler = DDPMScheduler(num_train_timesteps=1000, schedule="scaled_linear_beta", beta_start=0.0015, beta_end=0.0195)
 
     with torch.no_grad():
-        with autocast(device_type = 'cuda', enabled=(device.type == "cuda")):
+        with torch.autocast("cuda", enabled=False):
                 check_data = first(train_loader)
                 z = autoencoder.encode_stage_2_inputs(check_data["image"].to(device))
                 print(f"Latent shape: {z.shape}")
@@ -522,11 +528,12 @@ def train_ldm(unet, conditioner, train_loader, autoencoder, ldm_epochs = 150,
             volume = batch["vol"].to(device).float().view(-1)
             sex = batch["sex"].to(device).long().view(-1)
             group = batch["group"].to(device).long().view(-1)
-            cond_lat = conditioner(age, sex, group, volume)     # [B,1,128]
+            part = batch["part"].to(device).long().view(-1)
+            cond_lat = conditioner(age, sex, group, volume, part)     # [B,1,128]
             with torch.no_grad():
                 z_pairs = autoencoder.encode_stage_2_inputs(pairs) * scale_factor
 
-            with autocast(device_type = 'cuda', enabled=(device.type == "cuda")):
+            with torch.autocast("cuda", enabled=False):
                 # Generate random noise
                 noise = torch.randn(z.shape).to(device)
 
@@ -569,7 +576,7 @@ def train_ldm(unet, conditioner, train_loader, autoencoder, ldm_epochs = 150,
             torch.save(
                 {
                     "state_dict": conditioner.state_dict(),
-                    "cfg": {"n_groups": 6, "n_sex":3, "d_model": 128, "d_cat": 16},
+                    "cfg": {"n_groups": 6, "n_sex":3, "n_symetry": 2, "d_model": 144, "d_cat": 16},
                 },
                 os.path.join(outdir, "conditioner_best.pt"),
             )
@@ -580,9 +587,10 @@ def train_ldm(unet, conditioner, train_loader, autoencoder, ldm_epochs = 150,
             sex = check_data['sex']
             vol = check_data['vol']
             group = check_data['group']
-            description = [f'{float(age):.2f}', int(sex), f'{float(vol):.4f}',int(group) ]
+            part = check_data['part']
+            description = [f'{float(age):.2f}', int(sex), f'{float(vol):.4f}',int(group), int(part) ]
             sample_ldm_conditioner(train_loader, autoencoder, unet, scheduler, inferer, device, 
-                                conditioner, latent_shape=latent_shape, age = age, sex = sex, volume = vol, group=group, idx = 0, channel = 0, 
+                                conditioner, latent_shape=latent_shape, age = age, sex = sex, volume = vol, group=group, symetry=part, idx = 0, channel = 0, 
                                 outdir = outdir, filename = f'synthetic_ep{epoch+1}_{description}_BEST')
 
         if (epoch + 1) % sample_every == 0:
@@ -593,9 +601,10 @@ def train_ldm(unet, conditioner, train_loader, autoencoder, ldm_epochs = 150,
             sex = check_data['sex']
             vol = check_data['vol']
             group = check_data['group']
-            description = [f'{float(age):.2f}', int(sex), f'{float(vol):.4f}',int(group) ]
+            part = check_data['part']
+            description = [f'{float(age):.2f}', int(sex), f'{float(vol):.4f}',int(group), int(part) ]
             sample_ldm_conditioner(train_loader, autoencoder, unet, scheduler, inferer, device, 
-                                   conditioner, latent_shape=latent_shape, age = age, sex = sex, volume = vol, group=group, idx = 0, channel = 0, 
+                                   conditioner, latent_shape=latent_shape, age = age, sex = sex, volume = vol, group=group, symetry=part, idx = 0, channel = 0, 
                        outdir = outdir, filename = f'synthetic_ep{epoch+1}_{description}')
             
         _save_ckpt(os.path.join(outdir, "UNET_last.pt"), unet, opt=optimizer_diff, scaler=scaler, epoch=epoch+1, global_step=None, 
@@ -715,7 +724,7 @@ def main():
     except:
         n_samples = args.n_samples
 
-    train_loader, val_loader = make_dataloaders_from_csv(args.csv, conditions = ['age', 'sex', 'vol', 'group'], train_transforms = train_transforms,
+    train_loader, val_loader = make_dataloaders_from_csv(args.csv, conditions = ['age', 'sex', 'vol', 'group', 'part'], train_transforms = train_transforms,
                                 n_samples=n_samples, train_val_split = args.train_val_split, batch_size = args.batch, num_workers=args.workers, seed = 1017)
 
     ae_num_channels = tuple(int(x) for x in args.ae_num_channels.split(","))
@@ -764,7 +773,7 @@ def main():
     )
     unet.to(device)
 
-    conditioner = CovariateConditioner(n_groups=6, n_sex=3, d_model=96).to(device)
+    conditioner = CovariateConditioner(n_groups=6, n_sex=3, n_symetry=2,d_model=96).to(device)
 
     scale_factor = None
 
