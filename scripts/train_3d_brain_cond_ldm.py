@@ -514,7 +514,7 @@ def train_ldm(unet, conditioner, train_loader, autoencoder, ldm_epochs = 150,
             cond_lat = conditioner(age, sex, group, volume)     # [B,1,128]
 
             with torch.no_grad():
-                z = autoencoder.encode_stage_2_inputs(images)
+                z = autoencoder.encode_stage_2_inputs(images) * scale_factor
 
             with torch.autocast("cuda", enabled=False):
                 # Generate random noise
