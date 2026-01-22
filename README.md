@@ -648,7 +648,7 @@ python scripts/train_3d_brain_mirror_ldm.py \
 ### Generate sub part including brain stem, ventricles, and cerebellum
 <pre>
   python data_prep/prep_data.py \
-  --part sub, right_hemi_mirror, hemi \
+  --part sub,right_hemi_mirror,left_hemi,hemi \
   --postfix 0120
 </pre>
 
