@@ -48,7 +48,7 @@ def save_part_nii(t1_path, seg_path, mask_path, labels, prefix, postfix, save_di
         part_mask[mid:, :, :] = 0
         part_mask = part_mask.astype(np.uint8)
         part_arr = np.where(part_mask, t1, -1.0)
-    elif labels == 'right_mirror':
+    elif labels == 'right_mirror' or prefix == 'rhemi_mirror':
         mid = seg.shape[0] // 2
         part_mask = head_mask.copy()
         part_mask[mid:, :, :] = 0
@@ -100,9 +100,11 @@ def get_imageID(data_path):
 def main():
     PARTS = {'left_hemi':{'prefix':'lhemi','labels':[2,3,4,5,10,11,12,13,17,18,26,28]},
             'right_hemi':{'prefix':'rhemi', 'labels':[41,42,43,44,49,50,51,52,53,54,58,60]},
+            'right_hemi_mirror':{'prefix':'rhemi_mirror', 'labels':[41,42,43,44,49,50,51,52,53,54,58,60]},
             'cerebellum':{'prefix':'cerebellum', 'labels':[7,8,46,47]},
             'stem':{'prefix':'stem', 'labels':[14,15,16, 24]},
-            'sub':{'prefix':'sub', 'labels':[7,8,46,47, 14,15,16,24]},
+            'sub':{'prefix':'sub', 'labels':[7,8,46,47, 14,15,16]},
+            'ventricles':{'prefix':'ventricles', 'labels':[14,15]},
             'cerebral':{'prefix':'cerebral', 'labels':[2,41,3,42]},
             'whole_brain':{'prefix':'whole_brain', 'labels':'whole'},
             'left':{'prefix':'left', 'labels':'left'},
