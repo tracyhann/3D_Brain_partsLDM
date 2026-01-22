@@ -321,10 +321,11 @@ def train_ldm(unet, train_loader, autoencoder, ldm_epochs = 150,
 
     scheduler = DDPMScheduler(num_train_timesteps=1000, schedule="scaled_linear_beta", beta_start=0.0015, beta_end=0.0195)
 
-    with torch.no_grad():
-        with autocast(device_type = 'cuda', enabled=(device.type == "cuda")):
+    with torch.no_grad(), torch.autocast("cuda", enabled=False):
+        #with autocast(device_type = 'cuda', enabled=(device.type == "cuda")):
                 check_data = first(train_loader)
                 z = autoencoder.encode_stage_2_inputs(check_data["image"].to(device))
+                #print('AUTOENCODER_Z\n', z)
     if scale_factor == None:
         scale_factor = 1 / torch.std(z)
     print(f"Scaling factor set to {scale_factor}")
@@ -351,8 +352,11 @@ def train_ldm(unet, train_loader, autoencoder, ldm_epochs = 150,
         for step, batch in progress_bar:
             images = batch["image"].to(device)
             optimizer_diff.zero_grad(set_to_none=True)
+            with torch.no_grad():
+                z = autoencoder.encode_stage_2_inputs(images) * scale_factor
 
-            with autocast(device_type = 'cuda', enabled=(device.type == "cuda")):
+            with torch.autocast("cuda", enabled=False):
+            #with autocast(device_type = 'cuda', enabled=(device.type == "cuda")):
                 # Generate random noise
                 noise = torch.randn_like(z).to(device)
 
@@ -365,6 +369,7 @@ def train_ldm(unet, train_loader, autoencoder, ldm_epochs = 150,
                 noise_pred = inferer(
                     inputs=images, autoencoder_model=autoencoder, diffusion_model=unet, noise=noise, timesteps=timesteps
                 )
+                #print('NOISE_PRED\n', noise_pred)
 
                 loss = F.mse_loss(noise_pred.float(), noise.float())
 
@@ -465,19 +470,17 @@ def main():
     size    = tuple(int(x)   for x in args.size.split(","))
 
     channel = 0  # 0 = Flair
+    keys = ['image']
     train_transforms = transforms.Compose(
         [
-        transforms.LoadImaged(keys=["image"]),
-        transforms.EnsureChannelFirstd(keys=["image"]),
-        transforms.Lambdad(keys="image", func=lambda x: x[channel, :, :, :]),
-        transforms.EnsureChannelFirstd(keys=["image"], channel_dim="no_channel"),
-        transforms.EnsureTyped(keys=["image"]),
-        transforms.Orientationd(keys=["image"], axcodes="RAS"),
-        transforms.Spacingd(keys=["image"], pixdim=spacing, mode=("bilinear")),
-        #transforms.CropForegroundd(keys="image", source_key="image"),
-        transforms.SpatialPadd(keys=["image"], spatial_size=size, mode='constant', constant_values=-1.0), # MRI volumes are [-1,1] normalized
-        #transforms.CenterSpatialCropd(keys=["image"], roi_size=size), 
-        #transforms.ScaleIntensityRangePercentilesd(keys="image", lower=0, upper=99.5, b_min=0, b_max=1),
+        transforms.LoadImaged(keys=keys),
+        transforms.EnsureChannelFirstd(keys=keys),
+        transforms.Lambdad(keys=keys, func=lambda x: x[channel, :, :, :]),
+        transforms.EnsureChannelFirstd(keys=keys, channel_dim="no_channel"),
+        transforms.EnsureTyped(keys=keys),
+        transforms.Spacingd(keys=keys, pixdim=spacing, mode=("bilinear")),
+        transforms.CropForegroundd(keys=keys, source_key='image'),
+        transforms.DivisiblePadd(keys=keys, k=32, mode="constant",constant_values=-1.0),
         ]
     )
 
