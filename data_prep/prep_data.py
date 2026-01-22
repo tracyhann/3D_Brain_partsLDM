@@ -106,6 +106,7 @@ def main():
             'sub':{'prefix':'sub', 'labels':[7,8,46,47, 14,15,16]},
             'ventricles':{'prefix':'ventricles', 'labels':[14,15]},
             'cerebral':{'prefix':'cerebral', 'labels':[2,41,3,42]},
+            'hemi':{'prefix':'hemi', 'labels':'hemi'},
             'whole_brain':{'prefix':'whole_brain', 'labels':'whole'},
             'left':{'prefix':'left', 'labels':'left'},
             'right':{'prefix':'right', 'labels':'right'},
@@ -136,25 +137,34 @@ def main():
         save_dir = os.path.join(args.outdir, f'ADNI_turboprepout_{prefix}_{args.postfix}')
         os.makedirs(save_dir, exist_ok=True)
         part_df = []
-        for nii in tqdm(os.listdir(root)):
-            try:
-                t1_path = os.path.join(root, nii, 'normalized.nii.gz')
-                seg_path = os.path.join(root, nii, 'segm.nii.gz')
-                mask_path = os.path.join(root, nii, 'mask.nii.gz')
-                postfix = '_normalized.nii.gz'
-                part_path, mask_path, part_vol = save_part_nii(t1_path, seg_path, None, labels, prefix, postfix, save_dir, whole_brain_norm=True)
-                image_id = get_imageID(part_path)
-                part_df.append({'imageID': image_id, 
-                                'image': part_path, 'mask': mask_path, 
-                                'part': part,
-                                'age': conditions[str(image_id)]['Age']/100, 
-                                'sex': SEX[conditions[str(image_id)]['Sex']], 
-                                'group': GROUP[conditions[str(image_id)]['Group']], 
-                                'vol': part_vol})
-            except Exception as e:
-                print(f"Error processing {nii}: {e}")
-            
-        part_df = pd.DataFrame(part_df)
+        if part == 'hemi':
+            hemis = ['lhemi', 'rhemi_mirror']
+            for hemi in hemis:
+                csv_path = os.path.join(args.outdir, f'{hemi}_{args.postfix}.csv')
+                hemi_df = pd.read_csv(csv_path)
+                part_df.append(hemi_df)
+            part_df = pd.concat(part_df, axis=0, ignore_index=True)
+        else:
+            for nii in tqdm(os.listdir(root)):
+                try:
+                    t1_path = os.path.join(root, nii, 'normalized.nii.gz')
+                    seg_path = os.path.join(root, nii, 'segm.nii.gz')
+                    mask_path = os.path.join(root, nii, 'mask.nii.gz')
+                    postfix = '_normalized.nii.gz'
+                    part_path, mask_path, part_vol = save_part_nii(t1_path, seg_path, None, labels, prefix, postfix, save_dir, whole_brain_norm=True)
+                    image_id = get_imageID(part_path)
+                    part_df.append({'imageID': image_id, 
+                                    'image': part_path, 'mask': mask_path, 
+                                    'part': part,
+                                    'age': conditions[str(image_id)]['Age']/100, 
+                                    'sex': SEX[conditions[str(image_id)]['Sex']], 
+                                    'group': GROUP[conditions[str(image_id)]['Group']], 
+                                    'vol': part_vol})
+                except Exception as e:
+                    print(f"Error processing {nii}: {e}")
+                
+            part_df = pd.DataFrame(part_df)
+
         df_path = os.path.join(args.outdir, f'{prefix}_{args.postfix}.csv')
         part_df.to_csv(df_path, index=False)
         print('Saved to ', df_path)
@@ -165,4 +175,3 @@ def main():
 
 if __name__ == "__main__":
    main()
-
