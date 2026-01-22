@@ -69,7 +69,7 @@ seed_all(1017)
 
 
 def make_dataloaders_from_csv(csv_path, conditions = ['age', 'sex', 'group', 'vol'], train_transforms = None,
-                              train_val_split = 0.1, batch_size = 1, num_workers=8, seed = 1017):
+                              n_samples = None, train_val_split = 0.1, batch_size = 1, num_workers=8, seed = 1017):
     #Make a list of dicts. Keys must match your transforms.
     #images = sorted(glob("data/ADNI_turboprepout_whole_brain/*.nii.gz")) 
     #labels = sorted(glob("/data/ct/labelsTr/*.nii.gz"))
@@ -78,6 +78,8 @@ def make_dataloaders_from_csv(csv_path, conditions = ['age', 'sex', 'group', 'vo
     df = pd.read_csv(csv_path)
     data = []
     for i, row in df.iterrows():
+        if i == n_samples:
+            break
         sample = {}
         sample['image'] = row['image']
         sample['mask'] = row['mask']
@@ -473,7 +475,7 @@ def train_ldm(unet, conditioner, train_loader, autoencoder, ldm_epochs = 150,
     scheduler = DDPMScheduler(num_train_timesteps=1000, schedule="scaled_linear_beta", beta_start=0.0015, beta_end=0.0195)
 
     with torch.no_grad():
-        with autocast(device_type = 'cuda', enabled=(device.type == "cuda")):
+        with torch.autocast("cuda", enabled=False):
                 check_data = first(train_loader)
                 z = autoencoder.encode_stage_2_inputs(check_data["image"].to(device))
     if scale_factor == None:
@@ -511,7 +513,10 @@ def train_ldm(unet, conditioner, train_loader, autoencoder, ldm_epochs = 150,
             group = batch["group"].to(device).long().view(-1)
             cond_lat = conditioner(age, sex, group, volume)     # [B,1,128]
 
-            with autocast(device_type = 'cuda', enabled=(device.type == "cuda")):
+            with torch.no_grad():
+                z = autoencoder.encode_stage_2_inputs(images)
+
+            with torch.autocast("cuda", enabled=False):
                 # Generate random noise
                 noise = torch.randn(z.shape).to(device)
 
@@ -609,6 +614,7 @@ def main():
     ap.add_argument("--batch", type=int, default=1)
     ap.add_argument("--workers", type=int, default=8)
     ap.add_argument("--train_val_split", type=float, default=0.1)
+    ap.add_argument("--n_samples", default="ALL")
 
 
     ap.add_argument("--stage", choices=["ae", "ldm", "both"], default="both")
@@ -666,19 +672,17 @@ def main():
     size    = tuple(int(x)   for x in args.size.split(","))
 
     channel = 0  # 0 = Flair
+    keys = ['image', 'mask']
     train_transforms = transforms.Compose(
         [
-        transforms.LoadImaged(keys=["image", "mask"]),
-        transforms.EnsureChannelFirstd(keys=["image", "mask"]),
-        transforms.Lambdad(keys=["image", "mask"], func=lambda x: x[channel, :, :, :]),
-        transforms.EnsureChannelFirstd(keys=["image", "mask"], channel_dim="no_channel"),
-        transforms.EnsureTyped(keys=["image", "mask"]),
-        transforms.Orientationd(keys=["image", "mask"], axcodes="RAS"),
-        transforms.Spacingd(keys=["image", "mask"], pixdim=spacing, mode=("bilinear")),
-        #transforms.CropForegroundd(keys="image", source_key="image"),
-        #transforms.CenterSpatialCropd(keys=["image"], roi_size=size), 
-        transforms.SpatialPadd(keys=["image", "mask"], spatial_size=size, mode='constant', constant_values=-1.0), # MRI volumes are [-1,1] normalized
-        #transforms.ScaleIntensityRangePercentilesd(keys="image", lower=0, upper=99.5, b_min=0, b_max=1),
+        transforms.LoadImaged(keys=keys),
+        transforms.EnsureChannelFirstd(keys=keys),
+        transforms.Lambdad(keys=keys, func=lambda x: x[channel, :, :, :]),
+        transforms.EnsureChannelFirstd(keys=keys, channel_dim="no_channel"),
+        transforms.EnsureTyped(keys=keys),
+        transforms.Spacingd(keys=keys, pixdim=spacing, mode=("bilinear")),
+        transforms.CropForegroundd(keys=['image','mask'], source_key='image'),
+        transforms.DivisiblePadd(keys=keys, k=32, mode="constant",constant_values=-1.0),
         ]
     )
 
@@ -690,8 +694,14 @@ def main():
     random.seed(1017)
     seed_all(1017)
 
+    try:
+        n_samples = int(args.n_samples)
+    except:
+        n_samples = args.n_samples
+
     train_loader, val_loader = make_dataloaders_from_csv(args.csv, conditions = ['age', 'sex', 'vol', 'group'], train_transforms = train_transforms,
-                                train_val_split = args.train_val_split, batch_size = args.batch, num_workers=args.workers, seed = 1017)
+                                                         n_samples=n_samples, train_val_split = args.train_val_split, batch_size = args.batch, 
+                                                         num_workers=args.workers, seed = 1017)
 
     ae_num_channels = tuple(int(x) for x in args.ae_num_channels.split(","))
     ae_latent_ch = int(args.ae_latent_ch)
