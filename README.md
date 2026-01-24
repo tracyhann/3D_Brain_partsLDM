@@ -651,6 +651,10 @@ python scripts/train_3d_brain_mirror_ldm.py \
   --part sub,right_hemi_mirror,left_hemi,hemi \
   --postfix 0120
 </pre>
+### Generate paired data csv
+<pre>
+  python 
+</pre>
 
 - For all generative experiments below, feel free to adjust `--spacing` to as close as possible to `1,1,1` without causing OOMs.
   
@@ -718,6 +722,84 @@ python scripts/train_3d_brain_cond_ldm.py \
   --ldm_num_head_channels 0,64,64 \
   --ldm_sample_every 10 \
   --out_prefix sub_cLDM_0120_ldm1e-4_450
+</pre>
+
+#### cLDM of hemispheres (left and right mirrored hemispheres)
+<pre>
+python scripts/train_3d_brain_cond_ldm.py \
+  --csv data/hemi_0120.csv \
+  --spacing 1.5,1.5,1.5 \
+  --size 96,128,96 \
+  --batch 1 \
+  --workers 0 \
+  --train_val_split 0.1 \
+  --n_samples ALL \
+  --stage both \
+  --ae_epochs 100 \
+  --ae_num_channels 64,128,256,512 \
+  --ldm_epochs 150 \
+  --ldm_lr 1e-4 \
+  --ldm_num_channels 128,256,512 \
+  --ldm_num_head_channels 0,64,64 \
+  --ldm_sample_every 10 \
+  --out_prefix hemi_cLDM_0120_ldm1e-4_450
+</pre>
+
+
+## 01/23/26
+
+### Generate left, right, and mirrored right hemispheres
+<pre>
+  python data_prep/prep_data.py \
+  --part right_hemi,right_hemi_mirror,left_hemi,hemi \
+  --postfix 0120
+</pre>
+
+- For all generative experiments below, feel free to adjust `--spacing` to as close as possible to `1,1,1` without causing OOMs.
+  
+### LDM with better transforms of data
+
+#### LDM of hemispheres (left and right mirrored hemispheres)
+<pre>
+  python scripts/train_3d_brain_ldm_.py \
+  --csv data/hemi_0120.csv \
+  --spacing 1.5,1.5,1.5 \
+  --size 96,128,96 \
+  --batch 1 \
+  --n_samples ALL \
+  --workers 0 \
+  --train_val_split 0.1 \
+  --stage both \
+  --ae_epochs 100 \
+  --ae_lr 1e-4 \
+  --ae_num_channels 64,128,256,512 \
+  --ldm_epochs 150 \
+  --ldm_lr 1e-4 \
+  --ldm_num_channels 128,256,512 \
+  --ldm_num_head_channels 0,64,64 \
+  --ldm_sample_every 10 \
+  --out_prefix hemi_LDM_0120_ldm1e-4_450
+</pre>
+
+#### cLDM of hemispheres (left and right mirrored hemispheres)
+<pre>
+python scripts/train_3d_brain_cond_ldm.py \
+  --csv data/hemi_0120.csv \
+  --spacing 1.5,1.5,1.5 \
+  --size 96,128,96 \
+  --batch 1 \
+  --workers 0 \
+  --train_val_split 0.1 \
+  --n_samples ALL \
+  --stage both \
+  --ae_epochs 100 \
+  --ae_num_channels 64,128,256,512 \
+  --ldm_epochs 150 \
+  --ldm_lr 1e-4 \
+  --ldm_num_channels 128,256,512 \
+  --ldm_num_head_channels 0,64,64 \
+  --ldm_sample_every 10 \
+  --out_prefix hemi_cLDM_0120_ldm1e-4_450
 </pre>
 
 #### cLDM of hemispheres (left and right mirrored hemispheres)
