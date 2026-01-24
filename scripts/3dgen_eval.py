@@ -169,6 +169,8 @@ def make_dataloaders_for_eval(
 
     return real_loader, gen_loader
 
+
+
 '''
 def make_dataloaders_for_eval(csv_path, samples_dir, N = 100, conditions = ['age', 'sex', 'vol'], train_transforms = None,
                               train_val_split = 0.1, batch_size = 1, num_workers=8, seed = 1017):
@@ -631,7 +633,7 @@ def ldm_generate(unet, scale_factor, train_loader, autoencoder, generate_n_sampl
     scheduler = DDPMScheduler(num_train_timesteps=1000, schedule="scaled_linear_beta", beta_start=0.0015, beta_end=0.0195)
 
     with torch.no_grad():
-        with autocast(device_type = 'cuda', enabled=(device.type == "cuda")):
+        with autocast(device_type = 'cuda', enabled=False):
             check_data = first(train_loader)
             z = autoencoder.encode_stage_2_inputs(check_data["image"].to(device))
 
@@ -653,7 +655,7 @@ def ldm_generate(unet, scale_factor, train_loader, autoencoder, generate_n_sampl
 
     for n in tqdm(range(generate_n_samples)):
         sample_ldm(train_loader, autoencoder, unet, scheduler, inferer, device, idx = 0, channel = 0, 
-                       outdir = outdir, filename = f'synthetic_sample{n}')
+                       outdir = outdir, filename = f'generative_sample{n}')
 
 # ------------
 # CLI wrapper
@@ -710,19 +712,17 @@ def main():
     size    = tuple(int(x)   for x in args.size.split(","))
     
     channel = 0  # 0 = Flair
+    keys = ['image']
     train_transforms = transforms.Compose(
         [
-        transforms.LoadImaged(keys=["image"]),
-        transforms.EnsureChannelFirstd(keys=["image"]),
-        transforms.Lambdad(keys="image", func=lambda x: x[channel, :, :, :]),
-        transforms.EnsureChannelFirstd(keys=["image"], channel_dim="no_channel"),
-        transforms.EnsureTyped(keys=["image"]),
-        transforms.Orientationd(keys=["image"], axcodes="RAS"),
-        transforms.Spacingd(keys=["image"], pixdim=spacing, mode=("bilinear")),
-        #transforms.CropForegroundd(keys="image", source_key="image"),
-        transforms.SpatialPadd(keys=["image"], spatial_size=size, mode='constant', constant_values=-1.0), # MRI volumes are [-1,1] normalized
-        #transforms.CenterSpatialCropd(keys=["image"], roi_size=size), 
-        #transforms.ScaleIntensityRangePercentilesd(keys="image", lower=0, upper=99.5, b_min=0, b_max=1),
+        transforms.LoadImaged(keys=keys),
+        transforms.EnsureChannelFirstd(keys=keys),
+        transforms.Lambdad(keys=keys, func=lambda x: x[channel, :, :, :]),
+        transforms.EnsureChannelFirstd(keys=keys, channel_dim="no_channel"),
+        transforms.EnsureTyped(keys=keys),
+        transforms.Spacingd(keys=keys, pixdim=spacing, mode=("bilinear")),
+        transforms.CropForegroundd(keys=keys, source_key='image'),
+        transforms.DivisiblePadd(keys=keys, k=32, mode="constant",constant_values=-1.0),
         ]
     )
 
@@ -798,51 +798,6 @@ def main():
     ldm_generate(unet, scale_factor, train_loader, autoencoder, generate_n_samples=args.generate_n_samples, device=device, outdir=args.outdir)
 
     #medicalnet = MedicalNetEmbedding()
-
-    eval_transforms = transforms.Compose(
-        [
-        transforms.LoadImaged(keys=["image"]),
-        transforms.EnsureChannelFirstd(keys=["image"]),
-        transforms.Lambdad(keys="image", func=lambda x: x[channel, :, :, :]),
-        transforms.EnsureChannelFirstd(keys=["image"], channel_dim="no_channel"),
-        transforms.EnsureTyped(keys=["image"]),
-        transforms.Orientationd(keys=["image"], axcodes="RAS"),
-        transforms.Spacingd(keys=["image"], pixdim=spacing, mode=("bilinear")),
-        transforms.CropForegroundd(keys="image", source_key="image"),
-        transforms.SpatialPadd(keys=["image"], spatial_size=size, mode='constant', constant_values=-1.0), # MRI volumes are [-1,1] normalized
-        transforms.CenterSpatialCropd(keys=["image"], roi_size=size), 
-        #transforms.ScaleIntensityRangePercentilesd(keys="image", lower=0, upper=99.5, b_min=0, b_max=1),
-        ]
-    )
-
-    real_loader, gen_loader = make_dataloaders_for_eval(args.csv, samples_dir=f'{args.outdir}', N=300, conditions = ['age', 'sex', 'vol'], eval_transforms = eval_transforms,
-                                                        batch_size = args.batch, num_workers=args.workers, seed = 1017)
-    fids = compute_slice_fids(real_loader, gen_loader,device, axis = 2, max_slices=64, eps = 1e-6)
-    with open(f"{args.outdir}/fids.json", "w") as json_file:
-        json.dump(fids, json_file, indent=2)
-    plot_slice_fids(fids, title = "Per-slice FID (axial)", savepath = os.path.join(args.outdir, 'slice_fid_axial.png'))
-
-    fid_scores = np.array(list(fids.values()))
-    fid_scores = fid_scores[fid_scores != 0] # remove 0 FIDs if any
-
-    mean = np.mean(fid_scores)
-    std = np.std(fid_scores)
-    min_ = np.min(fid_scores)
-    max_ = np.max(fid_scores)
-    median = np.median(fid_scores)
-
-    lines = [
-        f"Mean FID: {mean}, Std: {std}",
-        f"Median FID: {median}",
-        f"Min FID: {min_}, Max: {max_}",
-    ]
-
-    out_path = os.path.join(args.outdir, 'fid_summary.txt')
-    with open(out_path, "w") as f:
-        print(f"Mean FID: {mean}, Std: {std}", file=f)
-        print(f"Median FID: {median}", file=f)
-        print(f"Min FID: {min_}, Max: {max_}", file=f)
-
 
 if __name__ == "__main__":
    main()
