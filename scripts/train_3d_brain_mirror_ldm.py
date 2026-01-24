@@ -86,6 +86,7 @@ def make_dataloaders_from_csv(csv_path, conditions = ['age', 'sex', 'vol'], trai
         sample['mask'] = row['mask']
         sample['pair'] = row['pair']
         sample['pair_mask'] = row['pair_mask']
+        sample['part'] = row['part']
         for c in conditions:
             sample[c] = row[c]
         data.append(sample)
@@ -95,6 +96,14 @@ def make_dataloaders_from_csv(csv_path, conditions = ['age', 'sex', 'vol'], trai
     train_data, val_data = data[:-split], data[-split:]
     train_ds = Dataset(data=train_data, transform=train_transforms)
     print(f'Transformed data shape: {train_ds[0]["image"].shape}')
+    standard = train_ds[0]["image"].shape
+    for i in range(1, len(train_ds)):
+        if not train_ds[i]["image"].shape == standard:
+            print(f'Inconsistent shape found: {train_ds[i]["image"].shape} vs {standard}')
+            print(train_data[i]['image'])
+        if not train_ds[i]["pair"].shape == standard:
+            print(f'Inconsistent pair shape found: {train_ds[i]["pair"].shape} vs {standard}')
+            print(train_data[i]['pair'])
     print(f"Number of training samples: {len(train_ds)}")
     train_loader = DataLoader(train_ds, batch_size=batch_size, shuffle=True, num_workers=num_workers, pin_memory=True)
     val_ds = Dataset(data=val_data, transform=train_transforms)
@@ -483,6 +492,9 @@ def sample_ldm_conditioner(
     plt.close("all")
 
 
+
+
+
 def train_ldm(unet, conditioner, train_loader, autoencoder, ldm_epochs = 150,
               lr=1e-4, scale_factor = None, device = torch.device("cuda" if torch.cuda.is_available() else "cpu"), 
               outdir = 'ckpts', sample_every = 25):
@@ -532,7 +544,7 @@ def train_ldm(unet, conditioner, train_loader, autoencoder, ldm_epochs = 150,
             cond_lat = conditioner(age, sex, group, volume, part)     # [B,1,128]
             with torch.no_grad():
                 z_pairs = autoencoder.encode_stage_2_inputs(pairs) * scale_factor
-                z = autoencoder.encode_stage_2_inputs(images)
+                z = autoencoder.encode_stage_2_inputs(images) * scale_factor
 
             with torch.autocast("cuda", enabled=False):
                 # Generate random noise
@@ -542,6 +554,7 @@ def train_ldm(unet, conditioner, train_loader, autoencoder, ldm_epochs = 150,
                 timesteps = torch.randint(
                     0, inferer.scheduler.num_train_timesteps, (images.shape[0],), device=images.device
                 ).long()
+
 
 
                 # Get model prediction
@@ -707,8 +720,8 @@ def main():
         transforms.EnsureChannelFirstd(keys=keys, channel_dim="no_channel"),
         transforms.EnsureTyped(keys=keys),
         transforms.Spacingd(keys=keys, pixdim=spacing, mode=("bilinear")),
-        transforms.CropForegroundd(keys=['image','mask'], source_key='image'),
-        transforms.CropForegroundd(keys=['pair','pair_mask'], source_key='pair'),
+        #transforms.CropForegroundd(keys=['image','mask'], source_key='image'),
+        #transforms.CropForegroundd(keys=['pair','pair_mask'], source_key='image'),
         transforms.DivisiblePadd(keys=keys, k=32, mode="constant",constant_values=-1.0),
         ]
     )
