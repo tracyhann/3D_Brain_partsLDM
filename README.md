@@ -651,10 +651,6 @@ python scripts/train_3d_brain_mirror_ldm.py \
   --part sub,right_hemi_mirror,left_hemi,hemi \
   --postfix 0120
 </pre>
-### Generate paired data csv
-<pre>
-  python 
-</pre>
 
 - For all generative experiments below, feel free to adjust `--spacing` to as close as possible to `1,1,1` without causing OOMs.
   
@@ -755,6 +751,11 @@ python scripts/train_3d_brain_cond_ldm.py \
   --postfix 0120
 </pre>
 
+### Generate paired data csv
+<pre>
+  python data_prep/pair_mirrored_LR_csv.py
+</pre>
+
 - For all generative experiments below, feel free to adjust `--spacing` to as close as possible to `1,1,1` without causing OOMs.
   
 ### LDM with better transforms of data
@@ -802,23 +803,24 @@ python scripts/train_3d_brain_cond_ldm.py \
   --out_prefix hemi_cLDM_0120_ldm1e-4_450
 </pre>
 
-#### cLDM of hemispheres (left and right mirrored hemispheres)
+#### Conditioned mirror LDM of hemispheres (left and right mirrored hemispheres)
 <pre>
-python scripts/train_3d_brain_cond_ldm.py \
-  --csv data/hemi_0120.csv \
+python scripts/train_3d_brain_mirror_ldm.py \
+  --csv data/lr_hemi_paired_0120.csv \
   --spacing 1.5,1.5,1.5 \
   --size 96,128,96 \
+  --n_samples ALL \
   --batch 1 \
   --workers 0 \
   --train_val_split 0.1 \
-  --n_samples ALL \
-  --stage both \
-  --ae_epochs 100 \
+  --stage ldm \
+  --ae_epochs 1 \
+  --ae_ckpt ckpts/run_left_right_paired_10_20260124_015549/AE_best.pt \
   --ae_num_channels 64,128,256,512 \
   --ldm_epochs 150 \
   --ldm_lr 1e-4 \
   --ldm_num_channels 128,256,512 \
   --ldm_num_head_channels 0,64,64 \
   --ldm_sample_every 10 \
-  --out_prefix hemi_cLDM_0120_ldm1e-4_450
+  --out_prefix lr_hemi_paired_450
 </pre>
