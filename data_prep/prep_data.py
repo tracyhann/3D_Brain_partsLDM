@@ -48,13 +48,16 @@ def save_part_nii(t1_path, seg_path, mask_path, labels, prefix, postfix, save_di
         part_mask[mid:, :, :] = 0
         part_mask = part_mask.astype(np.uint8)
         part_arr = np.where(part_mask, t1, -1.0)
-    elif labels == 'right_mirror' or prefix == 'rhemi_mirror':
+    elif prefix == 'rhemi_mirror':
+        part_mask = np.isin(seg, labels).astype(np.uint8)
+        part_arr = np.where(part_mask, t1, -1.0)
+        part_mask = part_mask[::-1, :, :]
+        part_arr = np.where(part_mask, t1[::-1, :, :], -1.0)
+    elif labels == 'right_mirror':
         mid = seg.shape[0] // 2
         part_mask = head_mask.copy()
         part_mask[mid:, :, :] = 0
         part_mask = part_mask.astype(np.uint8)
-        part_mask = part_mask[::-1, :, :]
-        part_arr = np.where(part_mask, t1[::-1, :, :], -1.0)
     else:
         part_mask = np.isin(seg, labels).astype(np.uint8)
         part_arr = np.where(part_mask, t1, -1.0)
