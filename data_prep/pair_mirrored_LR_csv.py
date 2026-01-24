@@ -1,13 +1,20 @@
-import os, pandas as pd 
+import pandas as pd
+import os
 import nibabel as nib
 import numpy as np
 import json
 from tqdm import tqdm
+import argparse
+import datetime
+
 
 root = 'data'
 postfix = '0120'
 parts = ['whole_brain', 'left', 'right_mirror']
-CODES = {'left': 0, 'right_mirror': 1, 'right': 1}
+parts = ['whole_brain', 'lhemi', 'rhemi_mirror']
+
+pairs = [(parts[-2], parts[-1]), (parts[-1], parts[-2])]
+CODES = {'left': 0, 'lhemi':0, 'left_hemi': 0, 'right_mirror': 1, 'right': 1, 'rhemi': 1, 'rhemi_mirror': 1,'right_hemi_mirror': 1}
 
 
 df = pd.DataFrame()
@@ -28,7 +35,7 @@ imgs = df.set_index("imageID").to_dict(orient="index")
 df_paired = []
 for id in imgs.keys():
     img = imgs[id]
-    for part, pair in [('left', 'right_mirror'), ('right_mirror', 'left')]:
+    for part, pair in pairs:
         row = {'imageID': id, 'age': img['age'], 'sex': img['sex'], 'group': img['group']}
         wb = 'whole_brain'
         row[wb] = img[wb]
@@ -47,4 +54,5 @@ for id in imgs.keys():
 df_paired = pd.DataFrame(df_paired)
 print(df_paired.head())
 print(len(df_paired))
-df_paired.to_csv('data/left_right_paired_0120.csv')
+df_paired.to_csv('data/lr_hemi_paired_0120.csv')
+
