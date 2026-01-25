@@ -695,6 +695,12 @@ def main():
 
     from datetime import datetime
     import json
+
+    import sys
+    log_path = os.path.join(args.outdir, 'run.log')
+    log = open(log_path, "w", buffering=1)
+    sys.stdout = log
+    sys.stderr = log  # tracebacks too
     
     print(f"\n✅ Output dir: {args.outdir}\n")
     os.makedirs(args.outdir, exist_ok=True)
