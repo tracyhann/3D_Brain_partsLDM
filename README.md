@@ -824,3 +824,34 @@ python scripts/train_3d_brain_mirror_ldm.py \
   --ldm_sample_every 10 \
   --out_prefix lr_hemi_paired_450
 </pre>
+
+### Inference and Eval
+#### LDM of sub_0120
+- Adjust `--spacing` to match training (if different); training parameters can be found in `ckpt/<OUTDIR>/args.json`.
+- Run the following script in order.
+<pre>
+python scripts/3dgen_eval.py \
+  --csv data/sub_0120.csv \
+  --generate_n_samples 300 \
+  --spacing 2,2,2 \
+  --size 96,128,96 \
+  --batch 2 \
+  --workers 0 \
+  --train_val_split 0.1 \
+  --ae_num_channels 64,128,256,512 \
+  --ae_ckpt ckpts/run_sub_LDM_0120_ldm1e-4_450_20260123_160700/AE_best.pt \
+  --ldm_num_channels 128,256,512 \
+  --ldm_num_head_channels 0,64,64 \
+  --ldm_ckpt ckpts/run_sub_LDM_0120_ldm1e-4_450_20260123_160700/UNET_last.pt \
+  --outdir samples/LDM_0120/sub
+</pre>
+<pre>
+python scripts/evaluation.py \
+  --csv data/sub_0120.csv\
+  --generate_n_samples 300 \
+  --spacing 2,2,2 \
+  --size 96,128,96 \
+  --batch 1 \
+  --workers 0 \
+  --outdir samples/LDM_0120/sub
+</pre>
