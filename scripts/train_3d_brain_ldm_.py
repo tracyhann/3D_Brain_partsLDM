@@ -558,10 +558,13 @@ def main():
             print('Loading scale factor = ', scale_factor)
         except:
             scale_factor = None
+    if args.torch_autocast == True: 
+        torch_autocast = True
+    else: torch_autocast = False
 
     if args.stage in ["ldm", "both"]:
         train_ldm(unet, train_loader, autoencoder, ldm_epochs = args.ldm_epochs,
-              lr=args.ldm_lr, scale_factor=scale_factor, torch_autocast=args.torch_autocast,
+              lr=args.ldm_lr, scale_factor=scale_factor, torch_autocast=torch_autocast,
               device = device, outdir = args.outdir, sample_every = args.ldm_sample_every)
 
 
