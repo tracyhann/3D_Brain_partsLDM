@@ -496,13 +496,14 @@ def sample_ldm_conditioner(
 
 
 def train_ldm(unet, conditioner, train_loader, autoencoder, ldm_epochs = 150,
-              lr=1e-4, scale_factor = None, device = torch.device("cuda" if torch.cuda.is_available() else "cpu"), 
+              lr=1e-4, scale_factor = None, torch_autocast=True,
+              device = torch.device("cuda" if torch.cuda.is_available() else "cpu"), 
               outdir = 'ckpts', sample_every = 25):
 
     scheduler = DDPMScheduler(num_train_timesteps=1000, schedule="scaled_linear_beta", beta_start=0.0015, beta_end=0.0195)
 
     with torch.no_grad():
-        with torch.autocast("cuda", enabled=False):
+        with torch.autocast("cuda", enabled=torch_autocast):
                 check_data = first(train_loader)
                 z = autoencoder.encode_stage_2_inputs(check_data["image"].to(device))
                 print(f"Latent shape: {z.shape}")
@@ -546,7 +547,7 @@ def train_ldm(unet, conditioner, train_loader, autoencoder, ldm_epochs = 150,
                 z_pairs = autoencoder.encode_stage_2_inputs(pairs) * scale_factor
                 z = autoencoder.encode_stage_2_inputs(images) * scale_factor
 
-            with torch.autocast("cuda", enabled=False):
+            with torch.autocast("cuda", enabled=torch_autocast):
                 # Generate random noise
                 noise = torch.randn(z.shape).to(device)
 
@@ -652,6 +653,7 @@ def main():
 
     ap.add_argument("--n_samples", default="ALL")
     ap.add_argument("--stage", choices=["ae", "ldm", "both"], default="both")
+    ap.add_argument("--torch_autocast", default=True, help='Use torch autocast to accelerate: True or False.')
 
 
     # AE config
@@ -803,9 +805,14 @@ def main():
     if args.conditioner_ckpt != "":
         _load_ckpt_into_conditioner(conditioner, args.conditioner_ckpt, device)
 
+    if args.torch_autocast == True: 
+        torch_autocast = True
+    else: torch_autocast = False
+
     if args.stage in ["ldm", "both"]:
         train_ldm(unet, conditioner, train_loader, autoencoder, ldm_epochs = args.ldm_epochs,
-              lr=args.ldm_lr, scale_factor=scale_factor, device = device, outdir = args.outdir, sample_every = args.ldm_sample_every)
+              lr=args.ldm_lr, scale_factor=scale_factor, torch_autocast=torch_autocast,
+              device = device, outdir = args.outdir, sample_every = args.ldm_sample_every)
 
 
 if __name__ == "__main__":
