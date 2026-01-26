@@ -813,9 +813,8 @@ python scripts/train_3d_brain_mirror_ldm.py \
   --batch 1 \
   --workers 0 \
   --train_val_split 0.1 \
-  --stage ldm \
+  --stage both \
   --ae_epochs 1 \
-  --ae_ckpt ckpts/run_left_right_paired_10_20260124_015549/AE_best.pt \
   --ae_num_channels 64,128,256,512 \
   --ldm_epochs 150 \
   --ldm_lr 1e-4 \
@@ -854,4 +853,52 @@ python scripts/evaluation.py \
   --batch 1 \
   --workers 0 \
   --outdir samples/LDM_0120/sub
+</pre>
+
+## 01/26/26 
+### Turning on torch autocast to accelerate
+- Pull updated scripts from git.
+#### LDM of subpart (with autocast)
+<pre>
+  python scripts/train_3d_brain_ldm_.py \
+  --csv data/sub_0120.csv \
+  --spacing 1.2,1.2,1.2 \
+  --torch_autocast True \
+  --size 96,128,96 \
+  --batch 1 \
+  --n_samples ALL \
+  --workers 0 \
+  --train_val_split 0.1 \
+  --stage ldm \
+  --ae_epochs 100 \
+  --ae_lr 1e-4 \
+  --ae_ckpt ckpts/run_sub_LDM_0120_ldm1e-4_450_20260123_160700/AE_best.pt \
+  --ae_num_channels 64,128,256,512 \
+  --ldm_epochs 150 \
+  --ldm_lr 1e-4 \
+  --ldm_num_channels 128,256,512 \
+  --ldm_num_head_channels 0,64,64 \
+  --ldm_sample_every 10 \
+  --out_prefix sub_LDM_0120_ldm1e-4_450_AUTOCAST
+</pre>
+#### Conditioned mirror LDM of hemispheres (left and right mirrored hemispheres; with autocast)
+<pre>
+python scripts/train_3d_brain_mirror_ldm.py \
+  --csv data/lr_hemi_paired_0120.csv \
+  --spacing 1.5,1.5,1.5 \
+  --size 96,128,96 \
+  --torch_autocast True \
+  --n_samples ALL \
+  --batch 1 \
+  --workers 0 \
+  --train_val_split 0.1 \
+  --stage both \
+  --ae_epochs 1 \
+  --ae_num_channels 64,128,256,512 \
+  --ldm_epochs 150 \
+  --ldm_lr 1e-4 \
+  --ldm_num_channels 128,256,512 \
+  --ldm_num_head_channels 0,64,64 \
+  --ldm_sample_every 10 \
+  --out_prefix lr_hemi_paired_450_AUTOCAST
 </pre>
