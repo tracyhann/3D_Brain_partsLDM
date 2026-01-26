@@ -317,11 +317,13 @@ for batch in loader:
 
 
 def train_ldm(unet, train_loader, autoencoder, ldm_epochs = 150,
-              lr=1e-4, scale_factor=None, device = torch.device("cuda" if torch.cuda.is_available() else "cpu"), outdir = 'ckpts', sample_every = 25):
+              lr=1e-4, scale_factor=None, torch_autocast = True,
+              device = torch.device("cuda" if torch.cuda.is_available() else "cpu"), 
+              outdir = 'ckpts', sample_every = 25):
 
     scheduler = DDPMScheduler(num_train_timesteps=1000, schedule="scaled_linear_beta", beta_start=0.0015, beta_end=0.0195)
 
-    with torch.no_grad(), torch.autocast("cuda", enabled=False):
+    with torch.no_grad(), torch.autocast("cuda", enabled=torch_autocast):
         #with autocast(device_type = 'cuda', enabled=(device.type == "cuda")):
                 check_data = first(train_loader)
                 z = autoencoder.encode_stage_2_inputs(check_data["image"].to(device))
@@ -355,8 +357,7 @@ def train_ldm(unet, train_loader, autoencoder, ldm_epochs = 150,
             with torch.no_grad():
                 z = autoencoder.encode_stage_2_inputs(images) * scale_factor
 
-            with torch.autocast("cuda", enabled=False):
-            #with autocast(device_type = 'cuda', enabled=(device.type == "cuda")):
+            with autocast(device_type = 'cuda', enabled=torch_autocast):
                 # Generate random noise
                 noise = torch.randn_like(z).to(device)
 
@@ -413,6 +414,7 @@ def main():
     ap.add_argument("--size", default="160,224,160", help="Volume D,H,W (e.g., 160,224,160)")
     ap.add_argument("--batch", type=int, default=1)
     ap.add_argument("--workers", type=int, default=8)
+    ap.add_argument("--torch_autocast", default=True, help='Use torch autocast to accelerate: True or False.')
     ap.add_argument("--n_samples", default="ALL")
     ap.add_argument("--train_val_split", type=float, default=0.1)
 
@@ -559,7 +561,8 @@ def main():
 
     if args.stage in ["ldm", "both"]:
         train_ldm(unet, train_loader, autoencoder, ldm_epochs = args.ldm_epochs,
-              lr=args.ldm_lr, scale_factor=scale_factor, device = device, outdir = args.outdir, sample_every = args.ldm_sample_every)
+              lr=args.ldm_lr, scale_factor=scale_factor, torch_autocast=args.torch_autocast,
+              device = device, outdir = args.outdir, sample_every = args.ldm_sample_every)
 
 
 if __name__ == "__main__":
