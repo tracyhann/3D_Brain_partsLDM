@@ -892,8 +892,9 @@ python scripts/train_3d_brain_mirror_ldm.py \
   --batch 1 \
   --workers 0 \
   --train_val_split 0.1 \
-  --stage both \
+  --stage ldm \
   --ae_epochs 1 \
+  --ae_ckpt /CKPT/* \
   --ae_num_channels 64,128,256,512 \
   --ldm_epochs 150 \
   --ldm_lr 1e-4 \
