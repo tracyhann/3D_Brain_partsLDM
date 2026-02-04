@@ -928,3 +928,27 @@ python scripts/train_3d_brain_ldm_from_parts.py \
   --ldm_sample_every 10 \
   --out_prefix whole_brain_from_parts_uncond_CLAMP_1e-4_450_AUTOCAST
 </pre>
+
+## 02/03/26
+### Part fusion LDM (projected part latents as context)
+<pre>
+python scripts/train_3d_brain_ldm_from_proj_parts.py \
+  --csv data/whole_brain+3parts+masks_0120.csv \
+  --spacing 2,2,2 \
+  --size 96,128,96 \
+  --n_samples ALL \
+  --torch_autocast True \
+  --batch 1 \
+  --workers 0 \
+  --train_val_split 0.1 \
+  --stage ldm \
+  --ae_epochs 1 \
+  --ae_num_channels 64,128,256,512 \
+  --ae_ckpt ckpts/run_whole_brain_LDM_fixed_scale_0107_20260110_225454/AE_best.pt \
+  --ldm_epochs 150 \
+  --ldm_lr 1e-4 \
+  --ldm_num_channels 128,256,512 \
+  --ldm_num_head_channels 0,64,64 \
+  --ldm_sample_every 10 \
+  --out_prefix whole_brain_from_parts_uncond_CLAMP_1e-4_450_AUTOCAST
+</pre>
