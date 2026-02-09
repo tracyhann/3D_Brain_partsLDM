@@ -75,7 +75,7 @@ def save_part_nii(t1_path, seg_path, mask_path, labels, prefix, postfix, save_di
 
 
 
-def normalize_mri(vol, mask=None, robust=False, pct=(1, 99)):
+def normalize_mri(vol, mask, pct=(1, 99)):
     """
     vol: np.ndarray (any dtype)
     mask: boolean array same shape as vol (optional)
@@ -83,8 +83,11 @@ def normalize_mri(vol, mask=None, robust=False, pct=(1, 99)):
     pct: percentile bounds (low, high) for robust scaling
     """
     x = vol.astype(np.float32)
-    x = np.where(mask, x, -1.0).astype(np.float32)
-    lo, hi = np.percentile(x, [pct[0], pct[1]])
+    mask = mask.astype(bool)
+
+    #x = np.where(mask, x, -1.0).astype(np.float32)
+    vals = x[mask] if mask.any() else x.ravel()
+    lo, hi = np.percentile(vals, [pct[0], pct[1]])
     # avoid degeneracy
     if hi <= lo: lo, hi = x.min(), x.max()
 
@@ -93,6 +96,7 @@ def normalize_mri(vol, mask=None, robust=False, pct=(1, 99)):
     v = v * 2.0 - 1.0                     # -> [-1,1]
 
     return v
+
 
 
 def get_imageID(data_path):
@@ -139,6 +143,7 @@ def main():
         labels = PARTS[part]['labels']
         save_dir = os.path.join(args.outdir, f'ADNI_turboprepout_{prefix}_{args.postfix}')
         os.makedirs(save_dir, exist_ok=True)
+        print('Saving to ', save_dir)
         part_df = []
         if part == 'hemi':
             hemis = ['lhemi', 'rhemi_mirror']
@@ -154,7 +159,9 @@ def main():
                     seg_path = os.path.join(root, nii, 'segm.nii.gz')
                     mask_path = os.path.join(root, nii, 'mask.nii.gz')
                     postfix = '_normalized.nii.gz'
-                    part_path, mask_path, part_vol = save_part_nii(t1_path, seg_path, None, labels, prefix, postfix, save_dir, whole_brain_norm=True)
+                    part_path, mask_path, part_vol = save_part_nii(t1_path, seg_path, None, labels, 
+                                                                   prefix, postfix, save_dir, 
+                                                                   whole_brain_norm=False)
                     image_id = get_imageID(part_path)
                     part_df.append({'imageID': image_id, 
                                     'image': part_path, 'mask': mask_path, 
@@ -171,7 +178,6 @@ def main():
         df_path = os.path.join(args.outdir, f'{prefix}_{args.postfix}.csv')
         part_df.to_csv(df_path, index=False)
         print('Saved to ', df_path)
-        #part_df.to_csv(f'data/{prefix}_3dldm_from_fused_1226.csv', index=False)
 
         print(part_df.head())
         
