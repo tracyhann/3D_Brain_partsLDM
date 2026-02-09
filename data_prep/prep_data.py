@@ -127,7 +127,8 @@ def main():
     ap.add_argument("--part", default="whole_brain,left,right", help=str(list(PARTS.keys())))
     ap.add_argument("--outdir", default="data", help="Root output directory for processed data.")
     ap.add_argument("--postfix", default=str(datetime.datetime.now().date()), help="Postfix for outdir. Default: current date; Ex: ADNI_turboprepout_/{part/}_2026-01-07")
-
+    ap.add_argument("--combine", default=True)
+    ap.add_argument('--hemi_csv', default=True)
     args = ap.parse_args()
 
     root = args.root
@@ -180,6 +181,46 @@ def main():
         print('Saved to ', df_path)
 
         print(part_df.head())
+
+
+    if args.combine == True:
+        df = pd.DataFrame()
+        for part in parts:
+            part = PARTS[part]['prefix']
+            csv_path = os.path.join(args.outdir, f'{part}_{args.postfix}.csv')
+            part_df = pd.read_csv(csv_path)
+            part_df.sort_values(by='imageID', ascending=True, inplace=True, ignore_index=True)
+            df['imageID'] = list(part_df['imageID'])
+            df['age'] = list(part_df['age'])    
+            df['sex'] = list(part_df['sex'])    
+            df['group'] = list(part_df['group'])
+            df[part] = list(part_df['image'])
+            df[part+'_mask'] = list(part_df['mask'])
+            df[part+'_part'] = list(part_df['part'])
+            df[part+'_vol'] = list(part_df['vol'])
+        df.to_csv(os.path.join(args.outdir, f'whole_brain+3parts+masks_{args.postfix}.csv'))
+        print(df.head())
+
+    if args.hemi_csv == True:
+        df = pd.read_csv(os.path.join(args.outdir, f'whole_brain+3parts+masks_{args.postfix}.csv'))
+        imgs = df.set_index("imageID").to_dict(orient="index")
+        df_paired = []
+        for id in imgs.keys():
+            img = imgs[id]
+            for part, pair in [('lhemi', 'rhemi_mirror'), ('rhemi_mirror', 'lhemi')]:
+                row = {'imageID': id, 'age': img['age'], 'sex': img['sex'], 'group': img['group']}
+                row['image'] = img[part]
+                row['mask'] = img[part+'_mask']
+                row['part'] = 0 if part =='lhemi' else 1
+                row['vol'] = img[part+'_vol']
+                row['pair'] = img[pair]
+                row['pair_mask'] = img[pair+'_mask']
+                row['pair_part'] = 0 if pair == 'lhemi' else 1
+                row['pair_vol'] = img[pair+'_vol']
+                df_paired.append(row)
+        df_paired = pd.DataFrame(df_paired)
+        df_paired.to_csv(os.path.join(args.outdir, f'hemi_{args.postfix}.csv'))
+        print(df_paired.head())
         
 
 if __name__ == "__main__":
