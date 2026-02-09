@@ -61,6 +61,17 @@ def save_part_nii(t1_path, seg_path, mask_path, labels, prefix, postfix, save_di
     else:
         part_mask = np.isin(seg, labels).astype(np.uint8)
         part_arr = np.where(part_mask, t1, -1.0)
+
+    # CROP 
+    if prefix == 'rhemi':
+        part_arr = part_arr[:96, :, :]
+        part_mask = part_mask[:96, :, :]
+    if prefix == 'lhemi' or prefix == 'rhemi_mirror':
+        part_arr = part_arr[-96:, :, :]
+        part_mask = part_mask[-96:, :, :]
+    if prefix == 'sub':
+        part_arr = part_arr[:, :128, :96]
+        part_mask = part_mask[:, :128, :96]
     
     part_vol = part_mask.sum()/head_mask.sum()
 
