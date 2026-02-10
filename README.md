@@ -31,8 +31,8 @@ python data/turboprep_postproc.py
 - By default, this step will also generate the combined .csv of all parts and masks, and hemi.csv.
 <pre>
 python data_prep/prep_data.py \
---root data/ADNI_0206/turboprep_out \
---part whole_brain,left_hemi,right_hemi,right_hemi_mirror,sub \
---outdir data/processed_parts \
---postfix 0206 
+  --root data/ADNI_0206/turboprep_out \
+  --part whole_brain,left_hemi,right_hemi,right_hemi_mirror,sub \
+  --outdir data/processed_parts \
+  --postfix 0206 
 </pre>
