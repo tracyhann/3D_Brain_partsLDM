@@ -12,8 +12,7 @@ Load conda’s bash hook for this shell
 <pre>
 source /opt/conda/etc/profile.d/conda.sh  \
   || eval "$(/opt/conda/bin/conda shell.bash hook)"
-</pre>
-<pre>
+
 conda activate monai
 </pre>
 
@@ -36,4 +35,74 @@ python data_prep/prep_data.py \
   --part whole_brain,left_hemi,right_hemi,right_hemi_mirror,sub \
   --outdir data/processed_parts \
   --postfix 0206 
+</pre>
+
+
+## Train whole_brain, hemi, and sub AEs
+
+### AE for whole brain
+<pre>
+python scripts/train_3d_VAE.py \
+  --csv data/processed_parts/whole_brain_0206.csv \
+  --spacing 1,1,1 \
+  --batch 1 \
+  --n_samples ALL \
+  --workers 0 \
+  --train_val_split 0.1 \
+  --ae_epochs 100 \
+  --ae_lr 1e-4 \
+  --ae_num_channels 64,128,256,512 \
+  --outdir ckpts/AE \
+  --out_prefix whole_brain_AE \
+  --out_postfix 0206
+</pre>
+
+<pre>
+python scripts/train_3d_VAE.py \
+  --csv data/processed_parts/whole_brain_0206.csv \
+  --spacing 1.5,1.5,1.5 \
+  --batch 1 \
+  --n_samples ALL \
+  --workers 0 \
+  --train_val_split 0.1 \
+  --ae_epochs 100 \
+  --ae_lr 1e-4 \
+  --ae_num_channels 64,128,256,512 \
+  --outdir ckpts/AE \
+  --out_prefix whole_brain_AE \
+  --out_postfix 0206
+</pre>
+
+### AE for hemispheres
+<pre>
+python scripts/train_3d_VAE.py \
+  --csv data/processed_parts/hemi_0206.csv \
+  --spacing 1,1,1 \
+  --batch 1 \
+  --n_samples ALL \
+  --workers 0 \
+  --train_val_split 0.1 \
+  --ae_epochs 100 \
+  --ae_lr 1e-4 \
+  --ae_num_channels 64,128,256,512 \
+  --outdir ckpts/AE \
+  --out_prefix hemi_AE \
+  --out_postfix 0206
+</pre>
+
+### AE for sub
+<pre>
+python scripts/train_3d_VAE.py \
+  --csv data/processed_parts/sub_0206.csv \
+  --spacing 1,1,1 \
+  --batch 1 \
+  --n_samples ALL \
+  --workers 0 \
+  --train_val_split 0.1 \
+  --ae_epochs 100 \
+  --ae_lr 1e-4 \
+  --ae_num_channels 64,128,256,512 \
+  --outdir ckpts/AE \
+  --out_prefix sub_AE \
+  --out_postfix 0206
 </pre>
