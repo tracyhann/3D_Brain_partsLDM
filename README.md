@@ -12,7 +12,8 @@ Load conda’s bash hook for this shell
 <pre>
 source /opt/conda/etc/profile.d/conda.sh  \
   || eval "$(/opt/conda/bin/conda shell.bash hook)"
-
+</pre>
+<pre>
 conda activate monai
 </pre>
 
