@@ -54,7 +54,7 @@ python scripts/train_3d_VAE.py \
   --ae_num_channels 64,128,256,512 \
   --outdir ckpts/AE \
   --out_prefix whole_brain_AE \
-  --out_postfix 0206
+  --out_postfix 0206_s1
 </pre>
 
 <pre>
@@ -70,7 +70,7 @@ python scripts/train_3d_VAE.py \
   --ae_num_channels 64,128,256,512 \
   --outdir ckpts/AE \
   --out_prefix whole_brain_AE \
-  --out_postfix 0206
+  --out_postfix 0206_s15
 </pre>
 
 ### AE for hemispheres
