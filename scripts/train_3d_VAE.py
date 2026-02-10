@@ -180,7 +180,7 @@ def train_ae(autoencoder, train_loader, val_loader = None, val_interval = 1, ae_
     ae_best_ema = float("inf")
 
     # optional: early stop on EMA plateau
-    ema_patience = 30
+    ema_patience = 20
     ema_min_delta = 1e-4
     ema_bad = 0
     ema_warmup = 5
