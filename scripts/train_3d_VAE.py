@@ -70,39 +70,33 @@ def make_dataloaders_from_csv(csv_path, conditions = ['age', 'sex', 'vol', 'grou
     val_ids   = splits["val"]
     test_ids  = splits["test"]
 
+    image_ids = {}
+    for train_id in train_ids:
+        image_ids[train_id] = 'train'
+    for val_id in val_ids:
+        image_ids[val_id] = 'val'
+    for test_id in test_ids:
+        image_ids[test_id] = 'test'
+
     df = pd.read_csv(csv_path)
-    # Make a dict keyed by ImageID (each value is a row dict)
-    by_id = df.set_index("imageID").to_dict(orient="index")
 
     train_data, val_data, test_data = [], [], []
 
     i = 0
-    for train_id in train_ids:
-        if i == n_samples:
-            break
-        if train_id in by_id.keys():
-            row = by_id[train_id]
-            sample = {}
-            sample['image'] = row['image']
-            for c in conditions:
-                sample[c] = row[c]
+    for idx, row in df.iterrows():
+        image_id = row['imageID']
+        sample = {}
+        sample['image'] = row['image']
+        for c in conditions:
+            sample[c] = row[c]
+        if image_ids[image_id] == 'train':
             train_data.append(sample)
             i += 1
-    for val_id in val_ids:
-        if val_id in by_id.keys():
-            row = by_id[val_id]
-            sample = {}
-            sample['image'] = row['image']
-            for c in conditions:
-                sample[c] = row[c]
+            if i == n_samples:
+                break
+        elif image_ids[image_id] == 'val':
             val_data.append(sample)
-    for test_id in test_ids:
-        if test_id in by_id.keys():
-            row = by_id[test_id]
-            sample = {}
-            sample['image'] = row['image']
-            for c in conditions:
-                sample[c] = row[c]
+        elif image_ids[image_id] == 'test':
             test_data.append(sample)
             
     train_ds = Dataset(data=train_data, transform=train_transforms)
