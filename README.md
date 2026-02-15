@@ -46,32 +46,16 @@ python data_prep/prep_data.py \
 python scripts/train_3d_VAE.py \
   --csv data/processed_parts/whole_brain_0206.csv \
   --spacing 1.5,1.5,1.5 \
-  --batch 2 \
-  --n_samples ALL \
-  --workers 0 \
-  --train_val_split 0.1 \
-  --ae_epochs 100 \
-  --ae_lr 1e-4 \
-  --ae_num_channels 64,128,256,512 \
-  --outdir ckpts/AE \
-  --out_prefix whole_brain_AE \
-  --out_postfix 0211_s15_b2
-</pre>
-
-<pre>
-python scripts/train_3d_VAE.py \
-  --csv data/processed_parts/whole_brain_0206.csv \
-  --spacing 1.5,1.5,1.5 \
   --batch 1 \
   --n_samples ALL \
   --workers 0 \
-  --train_val_split 0.1 \
+  --data_split_json_path data/patient_splits_image_ids_75_10_15.json \
   --ae_epochs 100 \
   --ae_lr 1e-4 \
   --ae_num_channels 64,128,256,512 \
   --outdir ckpts/AE \
   --out_prefix whole_brain_AE \
-  --out_postfix 0206_s15
+  --out_postfix 0214
 </pre>
 
 ### AE for hemispheres
@@ -82,13 +66,13 @@ python scripts/train_3d_VAE.py \
   --batch 1 \
   --n_samples ALL \
   --workers 0 \
-  --train_val_split 0.1 \
+  --data_split_json_path data/patient_splits_image_ids_75_10_15.json \
   --ae_epochs 100 \
   --ae_lr 1e-4 \
   --ae_num_channels 64,128,256,512 \
   --outdir ckpts/AE \
   --out_prefix hemi_AE \
-  --out_postfix 0211_s15
+  --out_postfix 0214
 </pre>
 
 ### AE for sub
@@ -99,11 +83,11 @@ python scripts/train_3d_VAE.py \
   --batch 1 \
   --n_samples ALL \
   --workers 0 \
-  --train_val_split 0.1 \
+  --data_split_json_path data/patient_splits_image_ids_75_10_15.json \
   --ae_epochs 100 \
   --ae_lr 1e-4 \
   --ae_num_channels 64,128,256,512 \
   --outdir ckpts/AE \
   --out_prefix sub_AE \
-  --out_postfix 0211_s15
+  --out_postfix 0214
 </pre>
