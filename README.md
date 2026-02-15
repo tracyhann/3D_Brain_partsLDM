@@ -46,7 +46,7 @@ python data_prep/prep_data.py \
 python scripts/train_3d_VAE.py \
   --csv data/processed_parts/whole_brain_0206.csv \
   --spacing 1.5,1.5,1.5 \
-  --batch 1 \
+  --batch 2 \
   --n_samples ALL \
   --workers 0 \
   --data_split_json_path data/patient_splits_image_ids_75_10_15.json \
@@ -63,7 +63,7 @@ python scripts/train_3d_VAE.py \
 python scripts/train_3d_VAE.py \
   --csv data/processed_parts/hemi_0206.csv \
   --spacing 1.5,1.5,1.5 \
-  --batch 1 \
+  --batch 2 \
   --n_samples ALL \
   --workers 0 \
   --data_split_json_path data/patient_splits_image_ids_75_10_15.json \
@@ -80,7 +80,7 @@ python scripts/train_3d_VAE.py \
 python scripts/train_3d_VAE.py \
   --csv data/processed_parts/sub_0206.csv \
   --spacing 1.5,1.5,1.5 \
-  --batch 1 \
+  --batch 2 \
   --n_samples ALL \
   --workers 0 \
   --data_split_json_path data/patient_splits_image_ids_75_10_15.json \
