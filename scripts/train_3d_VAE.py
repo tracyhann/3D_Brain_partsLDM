@@ -56,30 +56,55 @@ def seed_all(seed: int):
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
 
-seed_all(1017)
-
 
 def make_dataloaders_from_csv(csv_path, conditions = ['age', 'sex', 'vol', 'group'], train_transforms = None,
-                              n_samples = None, train_val_split = 0.1, batch_size = 1, num_workers=8, seed = 1017):
+                              n_samples = None, data_split_json_path="data/patient_splits_image_ids_75_10_15.json", batch_size = 1, num_workers=8, seed = 1017):
     #Make a list of dicts. Keys must match your transforms.
     #images = sorted(glob("data/ADNI_turboprepout_whole_brain/*.nii.gz")) 
     #labels = sorted(glob("/data/ct/labelsTr/*.nii.gz"))
     #conds = pd.read_csv('data/whole_brain_data.csv').to_dict()
+    with open(data_split_json_path, "r") as f:
+        splits = json.load(f)
+
+    train_ids = splits["train"]
+    val_ids   = splits["val"]
+    test_ids  = splits["test"]
 
     df = pd.read_csv(csv_path)
-    data = []
-    for i, row in df.iterrows():
+    # Make a dict keyed by ImageID (each value is a row dict)
+    by_id = df.set_index("imageID").to_dict(orient="index")
+
+    train_data, val_data, test_data = [], [], []
+
+    i = 0
+    for train_id in train_ids:
         if i == n_samples:
             break
-        sample = {}
-        sample['image'] = row['image']
-        for c in conditions:
-            sample[c] = row[c]
-        data.append(sample)
-    random.seed(seed)
-    random.shuffle(data)
-    split = int(len(data)*train_val_split)
-    train_data, val_data = data[:-split], data[-split:]
+        if train_id in by_id.keys():
+            row = by_id[train_id]
+            sample = {}
+            sample['image'] = row['image']
+            for c in conditions:
+                sample[c] = row[c]
+            train_data.append(sample)
+            i += 1
+    for val_id in val_ids:
+        if val_id in by_id.keys():
+            row = by_id[val_id]
+            sample = {}
+            sample['image'] = row['image']
+            for c in conditions:
+                sample[c] = row[c]
+            val_data.append(sample)
+    for test_id in test_ids:
+        if test_id in by_id.keys():
+            row = by_id[test_id]
+            sample = {}
+            sample['image'] = row['image']
+            for c in conditions:
+                sample[c] = row[c]
+            test_data.append(sample)
+            
     train_ds = Dataset(data=train_data, transform=train_transforms)
     print(f'Transformed data shape: {train_ds[0]["image"].shape}')
     print(f"Number of training samples: {len(train_ds)}")
@@ -87,8 +112,10 @@ def make_dataloaders_from_csv(csv_path, conditions = ['age', 'sex', 'vol', 'grou
     val_ds = Dataset(data=val_data, transform=train_transforms)
     print(f"Number of validation samples: {len(val_ds)}")
     val_loader = DataLoader(val_ds, batch_size=1, num_workers=num_workers, pin_memory=True)
-    return train_loader, val_loader
-
+    test_ds = Dataset(data=test_data, transform=train_transforms)
+    print(f"Number of test samples: {len(test_ds)}")
+    test_loader = DataLoader(test_ds, batch_size=1, num_workers=num_workers, pin_memory=True)
+    return train_loader, val_loader, test_loader
 
 
 def check_train_data(train_loader, idx = 0, title = 'Train data example', save_path = None):
@@ -352,7 +379,8 @@ def main():
     ap.add_argument("--workers", type=int, default=8)
     ap.add_argument("--torch_autocast", default=True, help='Use torch autocast to accelerate: True or False.')
     ap.add_argument("--n_samples", default="ALL")
-    ap.add_argument("--train_val_split", type=float, default=0.1)
+    ap.add_argument("--data_split_json_path", type=str, default='data/patient_splits_image_ids_75_10_15.json', help='Path to JSON file containing train/val/test splits of image IDs.')
+    ap.add_argument("--seed", type=int, default=1017)
 
 
     # AE config
@@ -418,17 +446,15 @@ def main():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"\n⚙️ Using {device}\n")
     
-    seed = 1017
-    g = torch.Generator(device=device).manual_seed(seed)
-    random.seed(1017)
-    seed_all(1017)
+    random.seed(args.seed)
+    seed_all(args.seed)
 
     try:
         n_samples = int(args.n_samples)
     except:
         n_samples = args.n_samples
-    train_loader, val_loader = make_dataloaders_from_csv(args.csv, conditions = ['age', 'sex', 'vol','group'], train_transforms = train_transforms,
-                                                         n_samples=n_samples, train_val_split = args.train_val_split, batch_size = args.batch, 
+    train_loader, val_loader, test_loader = make_dataloaders_from_csv(args.csv, conditions = ['age', 'sex', 'vol','group'], train_transforms = train_transforms,
+                                                         n_samples=n_samples, data_split_json_path = args.data_split_json_path, batch_size = args.batch, 
                                                          num_workers=args.workers, seed = 1017)
 
     ae_num_channels = tuple(int(x) for x in args.ae_num_channels.split(","))
