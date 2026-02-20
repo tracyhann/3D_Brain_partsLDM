@@ -470,7 +470,7 @@ def train_ldm_steps(
     # ---- resume ----
     global_step = 0
     start_epoch = 0
-    history = {"train_loss": [], "simple_eval": [], "eval": []}
+    history = {"train_loss": [], "simple_eval": [], "eval": [], "loss_curve": []}
 
     if resume_ckpt:
         global_step, start_epoch, extra = _load_ckpt_into_unet(
@@ -483,6 +483,8 @@ def train_ldm_steps(
             if "scale_factor" in extra:
                 scale_factor = float(extra["scale_factor"])
                 inferer.scale_factor = scale_factor
+        if not isinstance(history.get("loss_curve"), list):
+            history["loss_curve"] = []
         print(f"[resume] global_step={global_step}, start_epoch~={start_epoch}, scale_factor={scale_factor}")
 
     # ---- step-based loop ----
@@ -534,6 +536,7 @@ def train_ldm_steps(
         running += float(loss.item())
         running_n += 1
         avg_loss = running / max(1, running_n)
+        history["loss_curve"].append(float(loss.item()))
 
         # pseudo-epoch for logging only
         epoch = int(max(0, global_step - 1) // max(1, steps_per_epoch))
@@ -555,6 +558,12 @@ def train_ldm_steps(
                 global_step=global_step,
                 epoch=epoch,
                 extra={"scale_factor": float(scale_factor), "history": history},
+            )
+            plot_unet_loss(
+                history["loss_curve"],
+                title=f"UNET Loss Curves_step{global_step}",
+                outdir=outdir,
+                filename="UNET_loss.png",
             )
 
         # ---- archival ckpt every ckpt_every steps ----
@@ -610,6 +619,12 @@ def train_ldm_steps(
         global_step=global_step,
         epoch=int(global_step // max(1, steps_per_epoch)),
         extra={"scale_factor": float(scale_factor), "history": history},
+    )
+    plot_unet_loss(
+        history["loss_curve"],
+        title=f"UNET Loss Curves_step{global_step}",
+        outdir=outdir,
+        filename="UNET_loss.png",
     )
 
 
