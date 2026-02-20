@@ -1,30 +1,53 @@
-#
+<details>
+<summary><strong>cd &lt;PROJECT_DIR&gt;</strong></summary>
+
 `cd <PROJECT_DIR>`
-# Environment
-## Docker
+
+</details>
+
+<details>
+<summary><strong>Environment</strong></summary>
+
+<details>
+<summary><strong>Docker</strong></summary>
+
 https://hub.docker.com/r/h8w108/3dbrain
 
 <pre>
 docker run --gpus all -it   -v "$PWD":/workspace   -w /workspace   h8w108/3dbrain:parts_ldm_20251013  bash
 </pre>
 
-###  If encountering conda init issue
+### If encountering conda init issue
 Load conda’s bash hook for this shell
+
 <pre>
 source /opt/conda/etc/profile.d/conda.sh  \
   || eval "$(/opt/conda/bin/conda shell.bash hook)"
 </pre>
+
 <pre>
 conda activate monai
 </pre>
 
-## yaml
+</details>
+
+<details>
+<summary><strong>yaml</strong></summary>
+
 Alternatively, you can build a conda environment using this yaml file:
 
 `https://github.com/lulinliu/MineLongTail/blob/main/monaifull.yml`
 
-# Data
-## Download data
+</details>
+
+</details>
+
+<details>
+<summary><strong>Data</strong></summary>
+
+<details>
+<summary><strong>Download data</strong></summary>
+
 Download data to the `/data` dir. The directory should look like: `/data/ADNI_0206/*`.
 
 ### ADNI_0206
@@ -32,6 +55,7 @@ This directory contains ADNI NIfTI scans, input/output path lists, and the outpu
 
 #### Contents
 - Dataset dir structure.
+
 <pre>
 .
 ├── input_0206.txt
@@ -53,6 +77,7 @@ This directory contains ADNI NIfTI scans, input/output path lists, and the outpu
         ├── mask.nii.gz
         └── segm.nii.gz
 </pre>
+
 - `raw/` original NIfTI inputs organized by subject/session folders.
 - `turboprep_out/` per-scan output directories.
 - `MNI152_T1_1mm_brain.nii` template volume file.
@@ -60,7 +85,9 @@ This directory contains ADNI NIfTI scans, input/output path lists, and the outpu
 - `output.txt` output file paths for preprocessing.
 - `input_0206.txt` runtime log of input file paths during preprocessing (identical to input.txt).
 - `output_0206.txt` runtime log of output file paths during preprocessing (identical to output.txt).
+
 - Check out dataset repo structure on Huggingface.
+
 <pre>
 python3 - <<'PY'
 from huggingface_hub import HfApi
@@ -80,11 +107,16 @@ PY
     - mask.nii.gz
     - normalized.nii.gz
     - segm.nii.gz
- 
-## Data processing
+
+</details>
+
+<details>
+<summary><strong>Data processing</strong></summary>
+
 ### Step 1: Cropping and Resizing
 - Normalize intensities to [-1, 1] where background is defined as -1. Normalization percentiles computed withn head masks.
 - Foreground cropping and pad the volumes, masks, and segmentations to standardized shape: (160,192,160)
+
 <pre>
 python data/turboprep_postproc.py 
   --root data/ADNI_0206/turboprep_out \
@@ -96,6 +128,7 @@ python data/turboprep_postproc.py
 - After post processing the turboprep output files, generate whole brain, part data and corresponding .csv files with conditions. These will be for training.
 - `$OUTDIR` refers to the directory containing post-processed turboprep output files. Each normalized scan has shape (160, 192, 160).
 - By default, this step will also generate the combined .csv of all parts and masks, and hemi.csv.
+
 <pre>
 python data_prep/prep_data.py \
   --root data/ADNI_0206/turboprep_out \
@@ -104,8 +137,12 @@ python data_prep/prep_data.py \
   --postfix 0206 
 </pre>
 
+</details>
 
-## Train whole_brain, hemi, and sub AEs
+</details>
+
+<details>
+<summary><strong>Train whole_brain, hemi, and sub AEs</strong></summary>
 
 ### AE for whole brain
 <pre>
@@ -157,3 +194,5 @@ python scripts/train_3d_VAE.py \
   --out_prefix sub_AE \
   --out_postfix 0214
 </pre>
+
+</details>
