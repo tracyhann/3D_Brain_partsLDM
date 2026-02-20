@@ -380,12 +380,13 @@ def main():
     # AE config
     ap.add_argument("--ae_epochs", type=int, default=50)
     ap.add_argument("--ae_lr", type=float, default=1e-4)
-    ap.add_argument("--ae_latent_ch", type=int, default=3)
+    ap.add_argument("--ae_latent_ch", type=int, default=8)
     ap.add_argument("--ae_kl", type=float, default=1e-6)
     ap.add_argument("--ae_adv_weight", type=float, default=0.01)
     ap.add_argument("--ae_perceptual_weight", type=float, default=0.001)
     ap.add_argument("--ae_kl_weight", type=float, default=1e-6)
-    ap.add_argument("--ae_num_channels", default="64,128,256,512")
+    ap.add_argument("--ae_num_channels", default="64,128,256")
+    ap.add_argument("--ae_attention_levels", default="0,0,0", help="Comma-separated binary flags for attention at each AE level (e.g., 0,0,1)")
     #ap.add_argument("--ae_factors", default="1,2,2,2")
     ap.add_argument("--ae_ckpt", default="", help="Path to pretrained AE .pt (optional)")
     #ap.add_argument("--ae_decoder_only", action="store_true", help="Fine-tune decoder only")
@@ -453,18 +454,19 @@ def main():
 
     ae_num_channels = tuple(int(x) for x in args.ae_num_channels.split(","))
     ae_latent_ch = int(args.ae_latent_ch)
+    ae_attention_levels = tuple(bool(int(x)) for x in args.ae_attention_levels.split(","))
 
 
     autoencoder = AutoencoderKL(
         spatial_dims=3,
         in_channels=1,
         out_channels=1, 
-        num_channels=ae_num_channels, # default: (64, 128, 256, 512)
-        latent_channels=ae_latent_ch, # default: 3
+        num_channels=ae_num_channels, # default: (64, 128, 256)
+        latent_channels=ae_latent_ch, # default: 8
         num_res_blocks=2, # default: 2
         norm_num_groups=32, # default: 32
         norm_eps=1e-06,
-        attention_levels=(False, False, True, True),
+        attention_levels=ae_attention_levels,
     )
     autoencoder.to(device)
 
