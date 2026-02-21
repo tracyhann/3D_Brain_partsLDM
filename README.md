@@ -138,8 +138,6 @@ python data_prep/prep_data.py \
 
 </details>
 
-<details>
-<summary><strong>Train whole_brain, hemi, and sub AEs</strong></summary>
 
 <details>
 <summary><strong>Train AEs</strong></summary>
