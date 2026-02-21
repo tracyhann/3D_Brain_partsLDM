@@ -633,8 +633,15 @@ def train_ldm_steps(
 # CLI wrapper
 # ------------
 def main():
-    ap = argparse.ArgumentParser(description="Train MONAI 3D LDM (AE -> LDM) from a CSV of file paths.")
-    ap.add_argument("--csv", required=True, help="Path to CSV with columns: image[/path], sex, age, vol, [target_label]")
+    pre_ap = argparse.ArgumentParser(add_help=False)
+    pre_ap.add_argument("--config", default="", help="Path to JSON config file with argument defaults.")
+    pre_args, _ = pre_ap.parse_known_args()
+
+    ap = argparse.ArgumentParser(
+        description="Train MONAI 3D LDM (AE -> LDM) from a CSV of file paths.",
+        parents=[pre_ap],
+    )
+    ap.add_argument("--csv", default="", help="Path to CSV with columns: image[/path], sex, age, vol, [target_label]")
     ap.add_argument("--data_split_json_path", default="data/patient_splits_image_ids_75_10_15.json", help="JSON file with train/val/test imageID splits.")
     ap.add_argument("--spacing", default="1,1,1", help="Target spacing mm (e.g., 1,1,1)")
     ap.add_argument("--size", default="160,224,160", help="Volume D,H,W (e.g., 160,224,160)")
@@ -649,17 +656,10 @@ def main():
 
 
     # AE config
-    ap.add_argument("--ae_epochs", type=int, default=50)
-    ap.add_argument("--ae_lr", type=float, default=1e-4)
-    ap.add_argument("--ae_latent_ch", type=int, default=8)
-    ap.add_argument("--ae_kl", type=float, default=1e-6)
-    ap.add_argument("--ae_adv_weight", type=float, default=0.01)
-    ap.add_argument("--ae_perceptual_weight", type=float, default=0.001)
-    ap.add_argument("--ae_kl_weight", type=float, default=1e-6)
     ap.add_argument("--ae_num_channels", default="64,128,256")
     ap.add_argument("--ae_attention_levels", default="0,0,0", help="Comma-separated binary flags for attention at each AE level (e.g., 0,0,1)")
     #ap.add_argument("--ae_factors", default="1,2,2,2")
-    ap.add_argument("--ae_ckpt", default="", required=True, help="Path to pretrained AE .pt (optional)")
+    ap.add_argument("--ae_ckpt", default="", help="Path to pretrained AE .pt")
     #ap.add_argument("--ae_decoder_only", action="store_true", help="Fine-tune decoder only")
 
     ap.add_argument("--max_steps", type=int, default=120_000, help="Total number of optimizer steps for step-based LDM training.")
@@ -688,7 +688,24 @@ def main():
     ap.add_argument("--out_postfix", default = datetime.now().strftime('%Y%m%d_%H%M%S'))
 
 
+    if pre_args.config:
+        with open(pre_args.config, "r", encoding="utf-8") as f:
+            cfg_defaults = json.load(f)
+        if not isinstance(cfg_defaults, dict):
+            raise ValueError(f"Config must be a JSON object: {pre_args.config}")
+        known_keys = {a.dest for a in ap._actions}
+        unknown_keys = sorted(set(cfg_defaults.keys()) - known_keys)
+        if unknown_keys:
+            raise ValueError(
+                f"Unknown keys in config {pre_args.config}: {unknown_keys}"
+            )
+        ap.set_defaults(**cfg_defaults)
+
     args = ap.parse_args()
+    if not args.csv:
+        ap.error("--csv is required (pass on CLI or in --config).")
+    if not args.ae_ckpt:
+        ap.error("--ae_ckpt is required (pass on CLI or in --config).")
 
     os.makedirs(args.outdir, exist_ok=True)
     experiment_dir = os.path.join(args.outdir, f"{args.out_prefix}_{args.out_postfix}")
