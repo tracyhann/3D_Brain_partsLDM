@@ -135,7 +135,25 @@ python data_prep/prep_data.py \
   --postfix 0206 
 </pre>
 
-</details>
+### Step 3: Test environment and data integrity
+
+- You may test with the following code to make sure that the environment and data are working properly.
+<pre>
+python scripts/train_3d_VAE.py \
+  --csv data/processed_parts/whole_brain_0206.csv \
+  --spacing 1.5,1.5,1.5 \
+  --batch 2 \
+  --n_samples 100 \
+  --workers 0 \
+  --data_split_json_path data/patient_splits_image_ids_75_10_15.json \
+  --ae_epochs 100 \
+  --ae_lr 1e-4 \
+  --ae_latent_ch 8 \
+  --ae_num_channels 64,128,256 \
+  --outdir ckpts/AE \
+  --out_prefix whole_brain_AE \
+  --out_postfix TEST
+</pre>
 
 </details>
 
