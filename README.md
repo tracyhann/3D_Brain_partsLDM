@@ -33,7 +33,7 @@ conda activate monai
 
 Alternatively, you can build a conda environment using this yaml file:
 
-`https://github.com/lulinliu/MineLongTail/blob/main/monaifull.yml`
+https://github.com/lulinliu/MineLongTail/blob/main/monaifull.yml
 
 </details>
 
