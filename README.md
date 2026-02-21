@@ -83,7 +83,7 @@ This directory contains ADNI NIfTI scans, input/output path lists, and the outpu
 - `input_0206.txt` runtime log of input file paths during preprocessing (identical to input.txt).
 - `output_0206.txt` runtime log of output file paths during preprocessing (identical to output.txt).
 
-- Check out dataset repo structure on Huggingface.
+- If you wish to check out dataset repo structure on Huggingface:
 
 <pre>
 python3 - <<'PY'
