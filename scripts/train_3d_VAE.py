@@ -365,8 +365,15 @@ def train_ae(autoencoder, train_loader, val_loader = None, val_interval = 1, ae_
 # CLI wrapper
 # ------------
 def main():
-    ap = argparse.ArgumentParser(description="Train MONAI 3D LDM (AE -> LDM) from a CSV of file paths.")
-    ap.add_argument("--csv", required=True, help="Path to CSV with columns: image[/path], sex, age, vol, [target_label]")
+    pre_ap = argparse.ArgumentParser(add_help=False)
+    pre_ap.add_argument("--config", default="", help="Path to JSON config file with argument defaults.")
+    pre_args, _ = pre_ap.parse_known_args()
+
+    ap = argparse.ArgumentParser(
+        description="Train MONAI 3D LDM (AE -> LDM) from a CSV of file paths.",
+        parents=[pre_ap],
+    )
+    ap.add_argument("--csv", default="", help="Path to CSV with columns: image[/path], sex, age, vol, [target_label]")
     ap.add_argument("--spacing", default="1,1,1", help="Target spacing mm (e.g., 1,1,1)")
     ap.add_argument("--size", default="160,224,160", help="Volume D,H,W (e.g., 160,224,160)")
     ap.add_argument("--batch", type=int, default=1)
@@ -397,7 +404,22 @@ def main():
     ap.add_argument("--out_postfix", default = datetime.now().strftime('%Y%m%d_%H%M%S'))
 
 
+    if pre_args.config:
+        with open(pre_args.config, "r", encoding="utf-8") as f:
+            cfg_defaults = json.load(f)
+        if not isinstance(cfg_defaults, dict):
+            raise ValueError(f"Config must be a JSON object: {pre_args.config}")
+        known_keys = {a.dest for a in ap._actions}
+        unknown_keys = sorted(set(cfg_defaults.keys()) - known_keys)
+        if unknown_keys:
+            raise ValueError(
+                f"Unknown keys in config {pre_args.config}: {unknown_keys}"
+            )
+        ap.set_defaults(**cfg_defaults)
+
     args = ap.parse_args()
+    if not args.csv:
+        ap.error("--csv is required (pass on CLI or in --config).")
 
     os.makedirs(args.outdir, exist_ok=True)
     experiment_dir = os.path.join(args.outdir, f"{args.out_prefix}_{args.out_postfix}")
