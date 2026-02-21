@@ -2,7 +2,7 @@
   "csv": "data/processed_parts/hemi_0206.csv",
   "spacing": "1.5,1.5,1.5",
   "size": "64,128,128",
-  "batch": 1,
+  "batch": 2,
   "workers": 0,
   "torch_autocast": true,
   "n_samples": "ALL",
