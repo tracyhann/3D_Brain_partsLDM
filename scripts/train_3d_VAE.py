@@ -176,8 +176,8 @@ def train_ae(autoencoder, train_loader, val_loader = None, val_interval = 1, ae_
 
 
 
-    optimizer_g = torch.optim.AdamW(params=autoencoder.parameters(), lr=lr)
-    optimizer_d = torch.optim.AdamW(params=discriminator.parameters(), lr=lr)
+    optimizer_g = torch.optim.AdamW(autoencoder.parameters(), lr=lr, betas=(0.5, 0.9))
+    optimizer_d = torch.optim.AdamW(discriminator.parameters(), lr=lr*0.5, betas=(0.5, 0.9))
 
 
 
@@ -188,6 +188,7 @@ def train_ae(autoencoder, train_loader, val_loader = None, val_interval = 1, ae_
     epoch_disc_loss_list = []
     epoch_ssim_train_list, epoch_psnr_train_list = [], []
     val_recon_epoch_loss_list = []
+    val_recon_ema_list = []
     epoch_ssim_val_list, epoch_psnr_val_list = [], []
     intermediary_images = []
     n_example_images = 4
@@ -199,12 +200,6 @@ def train_ae(autoencoder, train_loader, val_loader = None, val_interval = 1, ae_
     ema_alpha = 0.2           # 0.1–0.3 is typical
     val_loss_ema = None
     ae_best_ema = float("inf")
-
-    # optional: early stop on EMA plateau
-    ema_patience = 20
-    ema_min_delta = 1e-4
-    ema_bad = 0
-    ema_warmup = 5
 
 
     for epoch in range(n_epochs):
@@ -312,27 +307,12 @@ def train_ae(autoencoder, train_loader, val_loader = None, val_interval = 1, ae_
                 val_loss_ema = val_loss
             else:
                 val_loss_ema = ema_alpha * val_loss + (1.0 - ema_alpha) * val_loss_ema
+            val_recon_ema_list.append(float(val_loss_ema))
 
             epoch_ssim_val_list.append(ssim_val / (val_step + 1))
             epoch_psnr_val_list.append(np.mean(psnr_val / (val_step + 1)))
             plot_recon_loss(val_recon_epoch_loss_list, epoch_ssim_val_list, epoch_psnr_val_list, title = f'Val Reconstruction Loss Curve_ep{epoch+1}', outdir = outdir, filename = 'AE_val_recon_loss.png')
             print(f"Val epoch {epoch}: raw={val_loss:.6f}, ema={val_loss_ema:.6f}, best_ema={ae_best_ema:.6f}")
-
-            # Early stop logic on EMA
-            if len(val_recon_epoch_loss_list) >= ema_warmup:
-                if (ae_best_ema - val_loss_ema) > ema_min_delta:
-                    ema_bad = 0
-                else:
-                    ema_bad += 1
-
-                if ema_bad >= ema_patience:
-                    print(f"Early stopping: val EMA plateaued for {ema_patience} evals. "
-                        f"best_ema={ae_best_ema:.6f}, current_ema={val_loss_ema:.6f}")
-                    _save_ckpt(os.path.join(outdir, "AE_last.pt"), autoencoder, opt=optimizer_g, scaler=None, epoch=epoch+1, global_step=None, 
-                        extra={"opt_d": optimizer_d, "train_rec_loss": epoch_recon_loss_list, "train_disc_loss": epoch_disc_loss_list, 
-                               "train_gen_loss": epoch_gen_loss_list, "train_ssim": epoch_ssim_train_list, "train_psnr": epoch_psnr_train_list,
-                               "val_rec_loss": val_recon_epoch_loss_list, "val_ssim": epoch_ssim_val_list, "val_psnr": epoch_psnr_val_list})
-                    break
 
 
             if val_loss_ema < ae_best_ema:
@@ -343,7 +323,8 @@ def train_ae(autoencoder, train_loader, val_loader = None, val_interval = 1, ae_
                 _save_ckpt(os.path.join(outdir, "AE_best.pt"), autoencoder, opt=optimizer_g, scaler=None, epoch=epoch+1, global_step=None, 
                             extra={"opt_d": optimizer_d, "train_rec_loss": epoch_recon_loss_list, "train_disc_loss": epoch_disc_loss_list, 
                                    "train_gen_loss": epoch_gen_loss_list, "train_ssim": epoch_ssim_train_list, "train_psnr": epoch_psnr_train_list,
-                                   "val_rec_loss": val_recon_epoch_loss_list, "val_ssim": epoch_ssim_val_list, "val_psnr": epoch_psnr_val_list})
+                                   "val_rec_loss": val_recon_epoch_loss_list, "val_rec_ema": val_recon_ema_list,
+                                   "val_ssim": epoch_ssim_val_list, "val_psnr": epoch_psnr_val_list})
                 plot_reconstructions(val_batch, val_reconstruction, idx = 0, channel=0, title = f'Val Sample Reconstructions_ep{epoch+1}', outdir = outdir, filename = 'AE_val_recons.png')
             if epoch + 1 == n_epochs:
                 print('Final epoch, saving last AE checkpoint and val reconstructions...')
@@ -351,7 +332,8 @@ def train_ae(autoencoder, train_loader, val_loader = None, val_interval = 1, ae_
         _save_ckpt(os.path.join(outdir, "AE_last.pt"), autoencoder, opt=optimizer_g, scaler=None, epoch=epoch+1, global_step=None, 
                         extra={"opt_d": optimizer_d, "train_rec_loss": epoch_recon_loss_list, "train_disc_loss": epoch_disc_loss_list, 
                                "train_gen_loss": epoch_gen_loss_list, "train_ssim": epoch_ssim_train_list, "train_psnr": epoch_psnr_train_list,
-                               "val_rec_loss": val_recon_epoch_loss_list, "val_ssim": epoch_ssim_val_list, "val_psnr": epoch_psnr_val_list})
+                               "val_rec_loss": val_recon_epoch_loss_list, "val_rec_ema": val_recon_ema_list,
+                               "val_ssim": epoch_ssim_val_list, "val_psnr": epoch_psnr_val_list})
     del discriminator
     del loss_perceptual
     torch.cuda.empty_cache()
