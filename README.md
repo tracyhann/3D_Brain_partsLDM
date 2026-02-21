@@ -45,7 +45,7 @@ https://github.com/lulinliu/MineLongTail/blob/main/monaifull.yml
 <details>
 <summary><strong>Download data</strong></summary>
 
-Download data to the `/data` dir. The directory should look like: `/data/ADNI_0206/*`.
+Download data to the `/data` dir. The directory should look like: `/data/ADNI/*`.
 
 ### ADNI_0206
 This directory contains ADNI NIfTI scans, input/output path lists, and the outputs from a turboprep run.
@@ -117,8 +117,8 @@ PY
 
 <pre>
 python data/turboprep_postproc.py 
-  --root data/ADNI_0206/turboprep_out \
-  --outdir data/ADNI_0206/turboprep_out \
+  --root data/ADNI/turboprep_out \
+  --outdir data/ADNI/turboprep_out \
   --n_samples ALL
 </pre>
 
@@ -129,7 +129,7 @@ python data/turboprep_postproc.py
 
 <pre>
 python data_prep/prep_data.py \
-  --root data/ADNI_0206/turboprep_out \
+  --root data/ADNI/turboprep_out \
   --part whole_brain,left_hemi,right_hemi,right_hemi_mirror,sub \
   --outdir data/processed_parts \
   --postfix 0206 
