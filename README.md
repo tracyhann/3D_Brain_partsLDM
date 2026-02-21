@@ -134,8 +134,10 @@ python data_prep/prep_data.py \
   --outdir data/processed_parts \
   --postfix 0206 
 </pre>
+</details>
 
-### Step 3: Test environment and data integrity
+<details>
+<summary><strong>Test environment and data integrity</strong></summary>
 
 - You may test with the following code to make sure that the environment and data are working properly.
 <pre>
