@@ -168,6 +168,10 @@ python scripts/train_3d_VAE.py \
 <pre>
 python3 scripts/train_3d_VAE.py --config configs/whole_brain_AE_spacing1p5.json
 </pre>
+<pre>
+CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --standalone --nnodes=1 --nproc_per_node=4 \
+  scripts/train_3d_VAE_ddp.py --config configs/whole_brain_AE_spacing1p5.json
+</pre>
 
 ## AE for hemispheres
 <pre>
