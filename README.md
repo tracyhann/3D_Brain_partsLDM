@@ -197,3 +197,17 @@ python scripts/train_3d_VAE.py \
 </pre>
 
 </details>
+
+
+<details>
+<summary><strong>Train LDM UNets</strong></summary>
+
+## LDM for whole brain
+
+## LDM for hemispheres
+
+## LDM for cerebellar-brain-stem complex (sub)
+
+
+  
+</details>
