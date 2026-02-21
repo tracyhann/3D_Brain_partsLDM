@@ -156,6 +156,7 @@ python scripts/train_3d_VAE.py \
 </pre>
 
 </details>
+</details>
 
 
 <details>
