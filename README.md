@@ -166,56 +166,17 @@ python scripts/train_3d_VAE.py \
 
 ## AE for whole brain
 <pre>
-python scripts/train_3d_VAE.py \
-  --csv data/processed_parts/whole_brain_0206.csv \
-  --spacing 1.5,1.5,1.5 \
-  --batch 2 \
-  --n_samples ALL \
-  --workers 0 \
-  --data_split_json_path data/patient_splits_image_ids_75_10_15.json \
-  --ae_epochs 100 \
-  --ae_lr 1e-4 \
-  --ae_latent_ch 8 \
-  --ae_num_channels 64,128,256 \
-  --outdir ckpts/AE \
-  --out_prefix whole_brain_AE \
-  --out_postfix 0214
+python3 scripts/train_3d_VAE.py --config configs/whole_brain_AE_spacing1p5.json
 </pre>
 
 ## AE for hemispheres
 <pre>
-python scripts/train_3d_VAE.py \
-  --csv data/processed_parts/hemi_0206.csv \
-  --spacing 1.5,1.5,1.5 \
-  --batch 2 \
-  --n_samples ALL \
-  --workers 0 \
-  --data_split_json_path data/patient_splits_image_ids_75_10_15.json \
-  --ae_epochs 100 \
-  --ae_lr 1e-4 \
-  --ae_latent_ch 8 \
-  --ae_num_channels 64,128,256 \
-  --outdir ckpts/AE \
-  --out_prefix hemi_AE \
-  --out_postfix 0214
+python3 scripts/train_3d_VAE.py --config configs/hemi_AE_spacing1p5.json
 </pre>
 
 ## AE for cerebellar-brain-stem complex (sub)
 <pre>
-python scripts/train_3d_VAE.py \
-  --csv data/processed_parts/sub_0206.csv \
-  --spacing 1.5,1.5,1.5 \
-  --batch 2 \
-  --n_samples ALL \
-  --workers 0 \
-  --data_split_json_path data/patient_splits_image_ids_75_10_15.json \
-  --ae_epochs 100 \
-  --ae_lr 1e-4 \
-  --ae_latent_ch 8 \
-  --ae_num_channels 64,128,256 \
-  --outdir ckpts/AE \
-  --out_prefix sub_AE \
-  --out_postfix 0214
+python3 scripts/train_3d_VAE.py --config configs/sub_AE_spacing1p5.json
 </pre>
 
 </details>
