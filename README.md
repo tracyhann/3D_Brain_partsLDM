@@ -171,7 +171,8 @@ python scripts/train_3d_VAE.py \
   --data_split_json_path data/patient_splits_image_ids_75_10_15.json \
   --ae_epochs 100 \
   --ae_lr 1e-4 \
-  --ae_num_channels 64,128,256,512 \
+  --ae_latent_ch 8 \
+  --ae_num_channels 64,128,256 \
   --outdir ckpts/AE \
   --out_prefix hemi_AE \
   --out_postfix 0214
