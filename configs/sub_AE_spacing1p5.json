@@ -2,7 +2,7 @@
   "csv": "data/processed_parts/sub_0206.csv",
   "spacing": "1.5,1.5,1.5",
   "size": "128,96,64",
-  "batch": 1,
+  "batch": 2,
   "workers": 0,
   "torch_autocast": true,
   "n_samples": "ALL",
