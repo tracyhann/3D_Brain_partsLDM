@@ -113,6 +113,7 @@ PY
 ### Step 1: Cropping and Resizing
 - Normalize intensities to [-1, 1] where background is defined as -1. Normalization percentiles computed withn head masks.
 - Foreground cropping and pad the volumes, masks, and segmentations to standardized shape: (160,192,160)
+- Converting to parts: whole_brain (160,192,160), left_hemi/right_hemi/right_hemi_mirror (96,192,160), sub (160,128,96)
 
 <pre>
 python data/turboprep_postproc.py 
