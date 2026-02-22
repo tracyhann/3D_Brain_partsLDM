@@ -9,7 +9,7 @@
   "data_split_json_path": "/scratch/10102/hh29499/tracy/3D_Brain_partsLDM/data/DATA2/lulin2/3D_Brain_partsLDM/data/patient_splits_image_ids_75_10_15.json",
   "seed": 1017,
   "ae_epochs": 100,
-  "ae_lr": 0.0001,
+  "ae_lr": 0.00005,
   "ae_latent_ch": 8,
   "ae_kl": 1e-06,
   "ae_adv_weight": 0.01,
