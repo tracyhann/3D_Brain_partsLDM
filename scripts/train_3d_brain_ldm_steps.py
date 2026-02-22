@@ -11,8 +11,7 @@ from monai.apps import DecathlonDataset
 from monai.config import print_config
 from monai.data import DataLoader
 from monai.utils import first, set_determinism
-from torch.cuda.amp import GradScaler
-from torch.amp import autocast
+from torch.amp import autocast, GradScaler
 from torch.nn import L1Loss
 from tqdm import tqdm
 import copy
@@ -323,7 +322,7 @@ def eval_ldm_fast(
 
     val_loss = val_loss / max(1, n_seen)
 
-    # ---------- B) DDIM sampling (fast) ----------
+    # ---------- B) DDIM sampling (fast; MONAI LatentDiffusionInferer.sample) ----------
     ddim = DDIMScheduler(
         num_train_timesteps=1000,
         schedule="scaled_linear_beta",
@@ -342,22 +341,17 @@ def eval_ldm_fast(
     latent_shape = (eval_n,) + tuple(z_ref.shape[1:])  # (N, C, H, W, D)
 
     z = torch.randn(latent_shape, device=device)
-
-    # DDIM timesteps (MONAI scheduler uses set_timesteps)
     ddim.set_timesteps(num_inference_steps=ddim_steps)
-
-    # Manual sampling loop over scheduler timesteps.
-    # Keep scheduler timestep indexing on CPU to match scheduler buffers.
-    for t in ddim.timesteps:
-        t_int = int(t.item())
-        t_batch = torch.full((eval_n,), t_int, device=device, dtype=torch.long)
-        with autocast(device_type="cuda", enabled=amp_enabled):
-            eps = unet(z, timesteps=t_batch)
-        z, _ = ddim.step(eps, t_int, z)
-
-    # decode latents back to image space
-    with torch.no_grad():
-        x_gen = autoencoder.decode_stage_2_outputs(z / scale_factor)  # (N,1,H,W,D)
+    with autocast(device_type="cuda", enabled=amp_enabled):
+        x_gen = inferer_sample.sample(
+            input_noise=z,
+            autoencoder_model=autoencoder,
+            diffusion_model=unet,
+            scheduler=ddim,
+            save_intermediates=False,
+            verbose=False,
+        )
+    x_gen = x_gen.float()
 
     # ---------- C) cheap diversity metrics ----------
     # (1) latent diversity: encode generated imgs back to latents, compute std
@@ -465,12 +459,18 @@ def train_ldm_steps(
 
     # ---- optimizer + scaler ----
     optimizer = torch.optim.AdamW(unet.parameters(), lr=lr, weight_decay=1e-2)
-    scaler = GradScaler()
+    scaler = GradScaler("cuda", enabled=bool(torch_autocast and device.type == "cuda"))
 
     # ---- resume ----
     global_step = 0
     start_epoch = 0
-    history = {"train_loss": [], "simple_eval": [], "eval": [], "loss_curve": []}
+    history = {
+        "train_loss": [],
+        "simple_eval": [],
+        "eval": [],
+        "loss_curve": [],
+        "epoch_loss_curve": [],
+    }
 
     if resume_ckpt:
         global_step, start_epoch, extra = _load_ckpt_into_unet(
@@ -485,6 +485,8 @@ def train_ldm_steps(
                 inferer.scale_factor = scale_factor
         if not isinstance(history.get("loss_curve"), list):
             history["loss_curve"] = []
+        if not isinstance(history.get("epoch_loss_curve"), list):
+            history["epoch_loss_curve"] = []
         print(f"[resume] global_step={global_step}, start_epoch~={start_epoch}, scale_factor={scale_factor}")
 
     # ---- step-based loop ----
@@ -493,6 +495,16 @@ def train_ldm_steps(
 
     data_iter = iter(train_loader)
     steps_per_epoch = len(train_loader)
+    steps_per_epoch = max(1, int(steps_per_epoch))
+
+    def _update_epoch_loss_curve():
+        raw = history.get("loss_curve", [])
+        epoch_curve = []
+        for i in range(0, len(raw), steps_per_epoch):
+            chunk = raw[i : i + steps_per_epoch]
+            if chunk:
+                epoch_curve.append(float(sum(chunk) / len(chunk)))
+        history["epoch_loss_curve"] = epoch_curve
 
     running = 0.0
     running_n = 0
@@ -550,6 +562,7 @@ def train_ldm_steps(
 
         # ---- rolling LAST checkpoint every last_every steps ----
         if (last_every > 0) and (global_step % last_every == 0):
+            _update_epoch_loss_curve()
             _save_ckpt(
                 os.path.join(outdir, "UNET_last.pt"),
                 unet,
@@ -560,14 +573,15 @@ def train_ldm_steps(
                 extra={"scale_factor": float(scale_factor), "history": history},
             )
             plot_unet_loss(
-                history["loss_curve"],
-                title=f"UNET Loss Curves_step{global_step}",
+                history["epoch_loss_curve"],
+                title=f"UNET Epoch-Average Loss_step{global_step}",
                 outdir=outdir,
                 filename="UNET_loss.png",
             )
 
         # ---- archival ckpt every ckpt_every steps ----
         if (ckpt_every > 0) and (global_step % ckpt_every == 0):
+            _update_epoch_loss_curve()
             ckpt_path = os.path.join(outdir, f"UNET_step{global_step:09d}.pt")
             _save_ckpt(
                 ckpt_path,
@@ -610,6 +624,7 @@ def train_ldm_steps(
             unet.train()
 
     # save final
+    _update_epoch_loss_curve()
     final_path = os.path.join(outdir, "UNET_last.pt")
     _save_ckpt(
         final_path,
@@ -621,8 +636,8 @@ def train_ldm_steps(
         extra={"scale_factor": float(scale_factor), "history": history},
     )
     plot_unet_loss(
-        history["loss_curve"],
-        title=f"UNET Loss Curves_step{global_step}",
+        history["epoch_loss_curve"],
+        title=f"UNET Epoch-Average Loss_step{global_step}",
         outdir=outdir,
         filename="UNET_loss.png",
     )
@@ -656,6 +671,7 @@ def main():
 
 
     # AE config
+    ap.add_argument("--ae_latent_ch", type=int, default=8)
     ap.add_argument("--ae_num_channels", default="64,128,256")
     ap.add_argument("--ae_attention_levels", default="0,0,0", help="Comma-separated binary flags for attention at each AE level (e.g., 0,0,1)")
     #ap.add_argument("--ae_factors", default="1,2,2,2")
