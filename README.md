@@ -188,12 +188,24 @@ python3 scripts/train_3d_VAE.py --config configs/sub_AE_spacing1p5.json
 
 <details>
 <summary><strong>Train LDM UNets</strong></summary>
-
+  
+- If need to resume, edit "resume_ckpt" in config file. Pass in the steps-based ckpt, i.e., `ckpts/UNET/*_UNET_spacing1p5/UNET_step000*.pt`
+- Note: whole brain and sub use `train_3d_brain_ldm_steps.py`, while hemi uses `train_3d_brain_ldm_hemi.py`
+  
 ## LDM for whole brain
+<pre>
+python3 scripts/train_3d_brain_ldm_steps.py --config configs/whole_brain_LDM_spacing1p5.json
+</pre>
 
 ## LDM for hemispheres
+<pre>
+python3 scripts/train_3d_brain_ldm_hemi.py --config configs/hemi_LDM_spacing1p5.json
+</pre>
 
 ## LDM for cerebellar-brain-stem complex (sub)
+<pre>
+python3 scripts/train_3d_brain_ldm_steps.py --config configs/sub_LDM_spacing1p5.json
+</pre>
 
 
   
