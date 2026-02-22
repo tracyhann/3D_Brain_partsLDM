@@ -4,7 +4,7 @@
 #SBATCH -p gh
 #SBATCH -N 8                # 节点数；按需改
 #SBATCH --ntasks-per-node=1   # 每节点启动1个任务（每节点1 GPU）
-#SBATCH -t 10:00:00
+#SBATCH -t 20:00:00
 #SBATCH -o /scratch/10102/hh29499/train_ldm_wholebrain/%x_%j.out
 #SBATCH -e /scratch/10102/hh29499/train_ldm_wholebrain/%x_%j.err
 
