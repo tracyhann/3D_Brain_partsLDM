@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH -J train_dggt
+#SBATCH -J wholebrain
 #SBATCH -A ASC26009
 #SBATCH -p gh
 #SBATCH -N 8                # 节点数；按需改
