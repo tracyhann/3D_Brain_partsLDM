@@ -322,7 +322,7 @@ def eval_ldm_fast(
 
     val_loss = val_loss / max(1, n_seen)
 
-    # ---------- B) DDIM sampling (fast; MONAI LatentDiffusionInferer.sample) ----------
+    # ---------- B) DDIM sampling (fast; manual loop for version consistency) ----------
     ddim = DDIMScheduler(
         num_train_timesteps=1000,
         schedule="scaled_linear_beta",
@@ -330,7 +330,6 @@ def eval_ldm_fast(
         beta_end=0.0195,
         clip_sample=False,
     )
-    inferer_sample = LatentDiffusionInferer(ddim, scale_factor=scale_factor)
 
     # Generate eval_n samples as latents, then decode
     # We’ll sample in latent space by starting from noise shaped like AE latents.
@@ -342,16 +341,18 @@ def eval_ldm_fast(
 
     z = torch.randn(latent_shape, device=device)
     ddim.set_timesteps(num_inference_steps=ddim_steps)
-    with autocast(device_type="cuda", enabled=amp_enabled):
-        x_gen = inferer_sample.sample(
-            input_noise=z,
-            autoencoder_model=autoencoder,
-            diffusion_model=unet,
-            scheduler=ddim,
-            save_intermediates=False,
-            verbose=False,
-        )
-    x_gen = x_gen.float()
+
+    # manual DDIM denoising in latent space
+    for t in ddim.timesteps:
+        t_int = int(t.item()) if hasattr(t, "item") else int(t)
+        t_batch = torch.full((eval_n,), t_int, device=device, dtype=torch.long)
+        with autocast(device_type="cuda", enabled=amp_enabled):
+            eps = unet(z, timesteps=t_batch)
+        z, _ = ddim.step(eps, t_int, z)
+
+    # decode latents back to image space
+    with torch.no_grad():
+        x_gen = autoencoder.decode_stage_2_outputs(z / scale_factor)  # (N,1,H,W,D)
 
     # ---------- C) cheap diversity metrics ----------
     # (1) latent diversity: encode generated imgs back to latents, compute std
