@@ -1,39 +1,14 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-cd /scratch/10102/hh29499/longtail_train/dggt_tacc
+cd /scratch/10102/hh29499/tracy/3D_Brain_partsLDM
 
 MASTER_ADDR=$(scontrol show hostnames "$SLURM_JOB_NODELIST" | head -n1)
 MASTER_PORT=29500   # 任意空闲端口
 NNODES=$SLURM_NNODES
 NODE_RANK=$SLURM_NODEID
-export TORCH_CUDA_ARCH_LIST="9.0"
-export MAX_JOBS=1
 
-# Use system CUDA (complete toolkit)
-export CUDA_HOME=/opt/apps/cuda/12.4
-export PATH="$CUDA_HOME/bin:$PATH"
-export LD_LIBRARY_PATH="$CUDA_HOME/lib64:${LD_LIBRARY_PATH:-}"
-export CPATH="$CUDA_HOME/include:${CPATH:-}"
-
-# IMPORTANT: nvcc host compiler must be C++ compiler (nvc++), not nvc
-unset TACC_CC TACC_CXX
-unset NVCC_PREPEND_FLAGS
-
-export CC=/usr/bin/gcc
-export CXX=/usr/bin/g++
-export CUDAHOSTCXX=/usr/bin/g++
-
-# make nvcc use g++ as host compiler
-export NVCC_PREPEND_FLAGS="--compiler-bindir=/usr/bin/g++"
-# Force nvcc to use nvc++ even if something injects CC=nvc
-export NVCC_PREPEND_FLAGS="--compiler-bindir=/home1/apps/nvidia/Linux_aarch64/24.7/compilers/bin/nvc++"
-
-# Cache torch extensions (optional but recommended)
-export TORCH_EXTENSIONS_DIR=/scratch/10102/hh29499/torch_extensions_cache
-mkdir -p "$TORCH_EXTENSIONS_DIR"
-
-LOG_DIR="/scratch/10102/hh29499/longtail_train/dggt_tacc/logs"
+LOG_DIR="/scratch/10102/hh29499/tracy/logs"
 mkdir -p "${LOG_DIR}"
 LOG="${LOG_DIR}/train_${SLURM_JOB_ID:-manual}_node${NODE_RANK}_$(date +%Y%m%d_%H%M%S).log"
 
@@ -43,14 +18,6 @@ torchrun \
   --node_rank=$NODE_RANK \
   --master_addr=$MASTER_ADDR \
   --master_port=$MASTER_PORT \
-  train.py \
-  --image_dir /scratch/10102/hh29499/longtail_train/train_data/train_data_dggt_v3_all/train_data_dggt_v3 \
-  --log_dir /scratch/10102/hh29499/longtail_train/dggt_tacc/logs \
-  --ckpt_path /scratch/10102/hh29499/longtail_train/dggt_tacc/pretrained/model.pt \
-  --input_views 3 \
-  --sequence_length 4 \
-  --max_epoch 5000 \
-  --save_ckpt 50 \
-  --no_train_dynamic_head \
+  scripts/train_3d_brain_ldm_steps_ddp.py \
+  --config configs/whole_brain_LDM_spacing1p5.json \
   2>&1 | tee "$LOG"
-
