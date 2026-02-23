@@ -1,6 +1,6 @@
 {
-  "csv": "data/processed_parts/sub_0206.csv",
-  "data_split_json_path": "data/patient_splits_image_ids_75_10_15.json",
+  "csv": "/scratch/10102/hh29499/tracy/3D_Brain_partsLDM/data/processed_parts/sub_0206.csv",
+  "data_split_json_path": "/scratch/10102/hh29499/tracy/3D_Brain_partsLDM/data/patient_splits_image_ids_75_10_15.json",
   "spacing": "1.5,1.5,1.5",
   "size": "128,96,64",
   "batch": 2,
@@ -12,7 +12,7 @@
   "ae_latent_ch": 8,
   "ae_num_channels": "64,128,256",
   "ae_attention_levels": "0,0,0",
-  "ae_ckpt": "ckpts/AE/sub_AE_spacing1p5/AE_best.pt",
+  "ae_ckpt": "/scratch/10102/hh29499/tracy/3D_Brain_partsLDM/ckpts/AE/sub_AE_second_spacing1p5/AE_best.pt",
   "max_steps": 120000,
   "ckpt_every": 10000,
   "last_every": 1000,
