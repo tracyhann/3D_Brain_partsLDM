@@ -7,15 +7,15 @@ MorphLDM is a 3D brain MRI generation method based on state-of-the-art latent di
 - Our code builds directly on [MONAI](https://github.com/Project-MONAI/MONAI/tree/dev) and [GenerativeModels](https://github.com/Project-MONAI/GenerativeModels) repositories.
 Make sure they are installed and included in your PYTHONPATH.
 
-### Train Autoencoder
+### Train Autoencoder (example)
 `python train_autoencoder.py -c config.json -e environment_config.json`
 
-### Train Diffusion UNet
+### Train Diffusion UNet (example)
 `python train_diffusion.py -c config.json -e environment_config.json`
 
-## Runbook (from scripts.txt)
+## Runbook
 Run all commands from:
-`/home/ttt/Desktop/3Dbrain/morphldm_128`
+`3D_Brain_partsLDM/morphldm_128`
 
 ### 1) Spacing 1.5 setup
 ```bash
@@ -27,10 +27,6 @@ python3 train_diffusion.py -c config_spacing1p5.json -e environment_config.json
 ```bash
 python3 infer_diffusion.py -c config_spacing1p5.json -e environment_config.json --inference-config inference_config.json
 ```
-
-## How it works
-![arch](figures/arch.png)
-![denoising](figures/denoising.png)
 
 MorphLDM differs from LDMs in the design of the encoder/decoder. 
 First, a learned template is outputted by a template decoder, optionally conditioned on image-level attributes. 
