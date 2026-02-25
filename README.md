@@ -205,5 +205,6 @@ python3 scripts/train_3d_VAE.py --config configs/sub_AE_spacing1p5.json
 
 ## MorphLDM
 - Please follow the run instructions in: https://github.com/tracyhann/3D_Brain_partsLDM/tree/tracy_0220_ddp/morphldm_128#1-spacing-15-setup NOTE: please follow step 1 only, train MorphLDM AE + diffusion at spacing = 1.5 
+- Please feel free to adapt the code to a data parallel version if multiple GPUs are available. When adapting the script, please use a file named in *_ddp.py format. 
 
 </details>
