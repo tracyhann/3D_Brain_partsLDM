@@ -5,7 +5,7 @@
   "condition_source": "test_split",
   "condition_metadata_path": "../data/MPRAGE-all-1213_1_07_2026.json",
   "condition_age_transform": "divide_by_100",
-  "num_samples": 5,
+  "num_samples": 291,
   "num_inference_steps": 1000,
   "sample_batch_size": 1,
   "max_empty_retries": 8,
