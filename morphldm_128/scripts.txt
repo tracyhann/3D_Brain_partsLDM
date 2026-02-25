@@ -1,0 +1,16 @@
+python3 train_autoencoder.py -c config_native160.json -e environment_config.json
+python3 train_diffusion.py -c config_native160.json -e environment_config.json
+
+
+cd morphldm_128
+python3 train_autoencoder.py -c config_160_192_160.json -e environment_config.json
+python3 train_diffusion.py -c config_160_192_160.json -e environment_config.json
+
+
+cd morphldm_128
+python3 train_autoencoder.py -c config_spacing1p5.json -e environment_config.json
+python3 train_diffusion.py -c config_spacing1p5.json -e environment_config.json
+
+
+cd /home/ttt/Desktop/3Dbrain/morphldm_128
+python3 infer_diffusion.py -c config_spacing1p5.json -e environment_config.json --inference-config inference_config.json
