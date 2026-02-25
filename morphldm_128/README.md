@@ -7,30 +7,6 @@ MorphLDM is a 3D brain MRI generation method based on state-of-the-art latent di
 - Our code builds directly on [MONAI](https://github.com/Project-MONAI/MONAI/tree/dev) and [GenerativeModels](https://github.com/Project-MONAI/GenerativeModels) repositories.
 Make sure they are installed and included in your PYTHONPATH.
 
-## Training on your own data
-`config.json` supports two dataset modes:
-- `dataset_type: "T1All"`: original MorphLDM dataset loader.
-- `dataset_type: "CSV"`: CSV + split-json loader aligned with MONAI transforms used in `scripts/train_3d_VAE.py` (`LoadImaged -> channel select -> Spacingd -> DivisiblePadd`).
-
-For `dataset_type: "CSV"`, set:
-- `csv_path`
-- `data_split_json_path`
-- `conditions` (default includes `age` and `sex`)
-- `spacing`, `channel`, `pad_k`
-
-`config.json` contains the hyperparameters for training the models.
-`environment_config.json` contains the paths to the data, output directory, and logging information.
-Logging defaults to local files (`use_wandb: false`):
-- Autoencoder metrics: `<run_dir>/autoencoder/metrics_autoencoder.jsonl`
-- Autoencoder recon snapshots: `<run_dir>/autoencoder/reconstructions/` (`train_epoch_XXXX.png`, `val_epoch_XXXX.png`)
-- Diffusion metrics: `<run_dir>/diffuion/metrics_diffusion.jsonl`
-- Diffusion sample volumes (NIfTI): `<run_dir>/diffuion/sample_volumes/`
-- Diffusion sample slices (optional): `<run_dir>/diffuion/sample_slices/` (`diffusion_train.save_sample_slices=true`)
-Each metrics jsonl file is reset at run start and includes `run_start` / `metric` / `run_end` events for per-run traceability.
-Useful AE save controls in `config.json`:
-- `autoencoder_train.save_recon_every` (default `10`)
-- `autoencoder_train.save_ckpt_every` (default `10`)
-
 ### Train Autoencoder
 `python train_autoencoder.py -c config.json -e environment_config.json`
 
