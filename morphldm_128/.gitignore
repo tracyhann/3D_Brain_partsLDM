@@ -8,4 +8,4 @@ example_native160/
 example/
 config_native160.json
 inference_config_native160.json
-Desktop/3D_Brain_partsLDM/morphldm_128/config_160_192_160.json
+config_160_192_160.json
