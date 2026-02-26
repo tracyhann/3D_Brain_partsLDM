@@ -1,7 +1,7 @@
 {
-  "csv": "data/processed_parts/sub_0206.csv",
+  "csv": "data/processed_parts/rhemi_0206.csv",
   "spacing": "1.5,1.5,1.5",
-  "size": "128,96,64",
+  "size": "64,128,128",
   "batch": 2,
   "workers": 0,
   "torch_autocast": true,
@@ -19,6 +19,6 @@
   "ae_attention_levels": "0,0,0",
   "ae_ckpt": "",
   "outdir": "ckpts/AE",
-  "out_prefix": "sub_AE",
+  "out_prefix": "rhemi_AE",
   "out_postfix": "spacing1p5"
 }

@@ -1,7 +1,7 @@
 
 `cd <PROJECT_DIR>`
 
-
+# To start
 <details>
 <summary><strong>Environment</strong></summary>
 
@@ -161,45 +161,7 @@ python scripts/train_3d_VAE.py \
 </details>
 
 
-<details>
-<summary><strong>Train AEs</strong></summary>
-
-## AE for whole brain
-<pre>
-python3 scripts/train_3d_VAE.py --config configs/whole_brain_AE_spacing1p5.json
-</pre>
-<pre>
-CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --standalone --nnodes=1 --nproc_per_node=4 \
-  scripts/train_3d_VAE_ddp.py --config configs/whole_brain_AE_spacing1p5.json
-</pre>
-
-## AE for hemispheres
-<pre>
-python3 scripts/train_3d_VAE.py --config configs/hemi_AE_spacing1p5.json
-</pre>
-
-## AE for cerebellar-brain-stem complex (sub)
-<pre>
-python3 scripts/train_3d_VAE.py --config configs/sub_AE_spacing1p5.json
-</pre>
-
-</details>
-
-
-<details>
-<summary><strong>Train LDM UNets</strong></summary>
-
-## LDM for whole brain
-
-## LDM for hemispheres
-
-## LDM for cerebellar-brain-stem complex (sub)
-
-
-  
-</details>
-
-
+# Baselines
 <details>
 <summary><strong>Baselines</strong></summary>
 

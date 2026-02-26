@@ -4,14 +4,8 @@ MorphLDM is a 3D brain MRI generation method based on state-of-the-art latent di
 
 ## Dependencies
 - You can reuse the environment you built from https://github.com/tracyhann/3D_Brain_partsLDM/tree/tracy_0220_ddp
-- Our code builds directly on [MONAI](https://github.com/Project-MONAI/MONAI/tree/dev) and [GenerativeModels](https://github.com/Project-MONAI/GenerativeModels) repositories.
+- MorphLDM code builds directly on [MONAI](https://github.com/Project-MONAI/MONAI/tree/dev) and [GenerativeModels](https://github.com/Project-MONAI/GenerativeModels) repositories.
 Make sure they are installed and included in your PYTHONPATH.
-
-### Train Autoencoder (example)
-`python train_autoencoder.py -c config.json -e environment_config.json`
-
-### Train Diffusion UNet (example)
-`python train_diffusion.py -c config.json -e environment_config.json`
 
 ## Runbook
 Run all commands from:

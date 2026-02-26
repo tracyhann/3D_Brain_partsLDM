@@ -86,7 +86,7 @@
         "lr_scheduler_milestones": [50, 1000],
         "n_epochs": 1200,
         "val_interval": 1,
-        "sample_every_steps": 5000,
+        "sample_every_steps": 10000,
         "save_sample_slices": false,
         "save_sample_nifti": true,
         "conditioning_file":"/simurgh/u/fangruih/monai-tutorials/generative/3d_ldm/conditioning/fmriresults01.txt",
@@ -94,7 +94,7 @@
         "gradient_clipping": true,
         "max_norm": 1.0,
         "save_every_epoch": false,
-        "save_ckpt_every": 5000
+        "save_ckpt_every": 10000
     },
     "NoiseScheduler": {
         "schedule": "scaled_linear_beta",
