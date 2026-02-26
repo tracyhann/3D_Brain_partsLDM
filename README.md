@@ -1,7 +1,7 @@
 
 `cd <PROJECT_DIR>`
 
-
+# To start
 <details>
 <summary><strong>Environment</strong></summary>
 
@@ -160,7 +160,7 @@ python scripts/train_3d_VAE.py \
 </details>
 </details>
 
-
+# Ours
 <details>
 <summary><strong>Train AEs</strong></summary>
 
@@ -210,3 +210,54 @@ python3 scripts/train_3d_brain_ldm_steps.py --config configs/sub_LDM_spacing1p5.
 
   
 </details>
+
+
+# Ablations
+
+<details>
+<summary><strong>Ablation 1: separate hemisphere LDMs for left and right</strong></summary>
+
+## AE for lhemi
+<pre>
+python3 scripts/train_3d_VAE.py --config configs/lhemi_AE_spacing1p5.json
+</pre>
+<pre>
+CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --standalone --nnodes=1 --nproc_per_node=4 \
+  scripts/train_3d_VAE_ddp.py --config configs/lhemi_AE_spacing1p5.json
+</pre>
+
+## AE for rhemi
+<pre>
+python3 scripts/train_3d_VAE.py --config configs/rhemi_AE_spacing1p5.json
+</pre>
+
+## LDM for lhemi
+- If need to resume, edit "resume_ckpt" in config file. Pass in the steps-based ckpt, i.e., `ckpts/UNET/*_UNET_spacing1p5/UNET_step000*.pt`
+<pre>
+python3 scripts/train_3d_brain_ldm_steps.py --config configs/lhemi_LDM_spacing1p5.json
+</pre>
+
+## LDM for rhemi
+<pre>
+python3 scripts/train_3d_brain_ldm_steps.py --config configs/rhemi_LDM_spacing1p5.json
+</pre>
+
+</details>
+
+
+
+<details>
+<summary><strong>Ablation 2: part context conditioned fusion LDM</strong></summary>
+
+- This baseline uses part context as conditioning for whole brain LDM. concat(z_coarse, z_whole_brain).
+
+## cLDM for whole brain
+- If need to resume, edit "resume_ckpt" in config file. Pass in the steps-based ckpt, i.e., `ckpts/UNET/*_UNET_spacing1p5/UNET_step000*.pt`
+<pre>
+python3 scripts/train_3d_brain_ldm_mask.py --config configs/whole_maskLDM_spacing1p5.json
+</pre>
+
+
+</details>
+
+
