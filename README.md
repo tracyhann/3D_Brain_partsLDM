@@ -256,7 +256,10 @@ python3 scripts/train_3d_brain_ldm_steps.py --config configs/rhemi_LDM_spacing1p
 <pre>
 python3 scripts/train_3d_brain_ldm_mask.py --config configs/whole_maskLDM_spacing1p5.json
 </pre>
-
+<pre>
+CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --standalone --nnodes=1 --nproc_per_node=4 \
+  scripts/train_3d_ldm_mask_ddp.py --config configs/whole_maskLDM_spacing1p5.json
+</pre>
 
 </details>
 
