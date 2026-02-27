@@ -173,6 +173,16 @@ python scripts/train_3d_VAE.py \
 - Please feel free to adapt the code to a data parallel version if multiple GPUs are available. When adapting to enable ddp, you may use `scripts/train_3d_ldm_steps_ddp.py` as a template. Please name the new ddp script in *_ddp.py format.
 
 ## Baseline 3: Segmentation-mask-guided LDM (Med-DDPM style)
+- Download pretrained AE weights from https://huggingface.co/tracyhan816/3D_Brain_partsLDM/tree/main/ckpts
+- Place the dir ckpts/* under the project dir. The organization looks like below:
+<pre>
+.
+├── ckpts
+│   └── AE
+│       └── whole_brain_AE_spacing1p5
+│           ├── AE_best.pt
+|           ...
+</pre>
 - For this experiment, we can use the pretrained ckpt for AE at `ckpts/AE/whole_brain_AE_spacing1p5`
 
 ```bash
