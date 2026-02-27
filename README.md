@@ -40,7 +40,8 @@ https://github.com/lulinliu/MineLongTail/blob/main/monaifull.yml
 </details>
 
 <details>
-<summary><strong>Data</strong></summary>
+<summary><strong>Data (IGNORE)</strong></summary>
+- Please ignore this section as all training data are already inside `data/processed_parts`.
 
 <details>
 <summary><strong>Download data</strong></summary>
@@ -160,6 +161,38 @@ python scripts/train_3d_VAE.py \
 </details>
 </details>
 
+# Baselines
+
+## Baseline 1: LDM (IGNORE)
+- This step is completed. Please proceed to the following baseline experiments.
+
+## Baseline 2: MorphLDM (IGNORE)
+- This experiment will be moved to Fan server. Please proceed to the next experiment.
+
+## Baseline 3: Segmentation-mask-guided LDM (Med-DDPM style)
+- Download pretrained AE weights from https://huggingface.co/tracyhan816/3D_Brain_partsLDM/tree/main/ckpts
+- Place the dir `ckpts/*` under the project dir `3D_Brain_partsLDM`. The organization looks like below:
+<pre>
+3D_Brain_partsLDM
+├── ckpts
+│   └── AE
+│       └── whole_brain_AE_spacing1p5
+│           ├── AE_best.pt
+|           ...
+</pre>
+- For this experiment, we can use the pretrained ckpt for AE at `ckpts/AE/whole_brain_AE_spacing1p5`
+
+```bash
+python3 scripts/train_3d_brain_ldm_segm.py --config configs/whole_brain_segmLDM_spacing1p5.json
+```
+- Please feel free to adapt the code to a data parallel version if multiple GPUs are available. When adapting to enable ddp, you may use `scripts/train_3d_ldm_steps_ddp.py` as a template. Please name the new ddp script in *_ddp.py format.
+
+## Baseline 4: 3D VAE GAN (COMING SOON)
+- COMING SOON.
+
+
+
+
 
 
 # Ablations
@@ -214,7 +247,7 @@ python3 scripts/train_3d_brain_ldm_mask.py --config configs/whole_maskLDM_spacin
 </pre>
 <pre>
 CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --standalone --nnodes=1 --nproc_per_node=4 \
-  scripts/train_3d_ldm_mask_ddp.py --config configs/whole_maskLDM_spacing1p5.json
+  scripts/train_3d_brain_ldm_mask_ddp.py --config configs/whole_maskLDM_spacing1p5.json
 </pre>
 
 </details>
