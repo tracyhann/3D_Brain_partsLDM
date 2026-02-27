@@ -161,36 +161,62 @@ python scripts/train_3d_VAE.py \
 </details>
 
 
-# Baselines
+
+# Ablations
+
 <details>
-<summary><strong>Baselines</strong></summary>
+<summary><strong>Ablation 1: separate hemisphere LDMs for left and right</strong></summary>
 
-## Baseline 1: LDM
-- This step is completed. Please proceed to the following baseline experiments.
-
-## Baseline 2: MorphLDM
-- Please follow the run instructions in: https://github.com/tracyhann/3D_Brain_partsLDM/tree/tracy_0220_ddp/morphldm_128#1-spacing-15-setup NOTE: please follow step 1 only, train BOTH MorphLDM AE + diffusion at spacing = 1.5. MorphLDM AE is a specialized AE based on template warping.
-- Please feel free to adapt the code to a data parallel version if multiple GPUs are available. When adapting to enable ddp, you may use `scripts/train_3d_ldm_steps_ddp.py` as a template. Please name the new ddp script in *_ddp.py format.
-
-## Baseline 3: Segmentation-mask-guided LDM (Med-DDPM style)
-- Download pretrained AE weights from https://huggingface.co/tracyhan816/3D_Brain_partsLDM/tree/main/ckpts
-- Place the dir `ckpts/*` under the project dir `3D_Brain_partsLDM`. The organization looks like below:
+## AE for lhemi
 <pre>
-3D_Brain_partsLDM
-├── ckpts
-│   └── AE
-│       └── whole_brain_AE_spacing1p5
-│           ├── AE_best.pt
-|           ...
+python3 scripts/train_3d_VAE.py --config configs/lhemi_AE_spacing1p5.json
 </pre>
-- For this experiment, we can use the pretrained ckpt for AE at `ckpts/AE/whole_brain_AE_spacing1p5`
+If wish to use DDP, you may run this code below, or adapt your own.
+<pre>
+CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --standalone --nnodes=1 --nproc_per_node=4 \
+  scripts/train_3d_VAE_ddp.py --config configs/lhemi_AE_spacing1p5.json
+</pre>
 
-```bash
-python3 scripts/train_3d_brain_ldm_segm.py --config configs/whole_brain_segmLDM_spacing1p5.json
-```
-- Please feel free to adapt the code to a data parallel version if multiple GPUs are available. When adapting to enable ddp, you may use `scripts/train_3d_ldm_steps_ddp.py` as a template. Please name the new ddp script in *_ddp.py format.
+## AE for rhemi
+<pre>
+python3 scripts/train_3d_VAE.py --config configs/rhemi_AE_spacing1p5.json
+</pre>
 
-## Baseline 4: 3D VAE GAN
-- COMING SOON.
+## LDM for lhemi
+- If need to resume, edit "resume_ckpt" in config file. Pass in the steps-based ckpt, i.e., `ckpts/UNET/*_UNET_spacing1p5/UNET_step000*.pt`
+<pre>
+python3 scripts/train_3d_brain_ldm_steps.py --config configs/lhemi_LDM_spacing1p5.json
+</pre>
+If wish to use DDP, you may run this code below, or adapt your own.
+<pre>
+CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --standalone --nnodes=1 --nproc_per_node=4 \
+  scripts/train_3d_brain_ldm_steps_ddp.py --config configs/lhemi_LDM_spacing1p5.json
+</pre>
+
+## LDM for rhemi
+<pre>
+python3 scripts/train_3d_brain_ldm_steps.py --config configs/rhemi_LDM_spacing1p5.json
+</pre>
 
 </details>
+
+
+
+<details>
+<summary><strong>Ablation 2: part context conditioned fusion LDM</strong></summary>
+
+- This baseline uses part context as conditioning for whole brain LDM. concat(z_coarse, z_whole_brain).
+
+## cLDM for whole brain
+- If need to resume, edit "resume_ckpt" in config file. Pass in the steps-based ckpt, i.e., `ckpts/UNET/*_UNET_spacing1p5/UNET_step000*.pt`
+<pre>
+python3 scripts/train_3d_brain_ldm_mask.py --config configs/whole_maskLDM_spacing1p5.json
+</pre>
+<pre>
+CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --standalone --nnodes=1 --nproc_per_node=4 \
+  scripts/train_3d_ldm_mask_ddp.py --config configs/whole_maskLDM_spacing1p5.json
+</pre>
+
+</details>
+
+
