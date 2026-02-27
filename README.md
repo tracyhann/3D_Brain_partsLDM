@@ -174,9 +174,9 @@ python scripts/train_3d_VAE.py \
 
 ## Baseline 3: Segmentation-mask-guided LDM (Med-DDPM style)
 - Download pretrained AE weights from https://huggingface.co/tracyhan816/3D_Brain_partsLDM/tree/main/ckpts
-- Place the dir ckpts/* under the project dir. The organization looks like below:
+- Place the dir `ckpts/*` under the project dir `3D_Brain_partsLDM`. The organization looks like below:
 <pre>
-.
+3D_Brain_partsLDM
 ├── ckpts
 │   └── AE
 │       └── whole_brain_AE_spacing1p5
