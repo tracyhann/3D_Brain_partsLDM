@@ -32,5 +32,5 @@
   "ldm_sample_every": 25,
   "outdir": "ckpts/UNET",
   "out_prefix": "sub_UNET",
-  "out_postfix": "spacing1p5"
+  "out_postfix": "spacing1p5_second_feb28"
 }
