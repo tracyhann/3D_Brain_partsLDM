@@ -18,15 +18,15 @@
   "rhemi_template_name": "data/template/dilated_r2/rhemi_mask.nii.gz",
   "sub_template_name": "data/template/dilated_r2/sub_mask.nii.gz",
 
-  "whole_ae_ckpt": "ckpts/AE/whole_brain_AE_spacing1p5/AE_best.pt",
-  "whole_unet_ckpt": "ckpts/UNET/whole_brain_mask_UNET_spacing1p5/UNET_last.pt",
+  "whole_ae_ckpt": "ckpts/AE/whole_brain_AE_0214_second/AE_best.pt",
+  "whole_unet_ckpt": "ckpts/UNET/whole_brain_UNET_spacing1p5/UNET_last.pt",
   "resume_ckpt": "",
 
-  "hemi_ae_ckpt": "ckpts/AE/hemi_AE_spacing1p5/AE_best.pt",
+  "hemi_ae_ckpt": "ckpts/AE/hemi_AE_second_spacing1p5/AE_best.pt",
   "hemi_unet_ckpt": "ckpts/UNET/hemi_UNET_spacing1p5/UNET_last.pt",
   "hemi_conditioner_ckpt": "",
 
-  "sub_ae_ckpt": "ckpts/AE/sub_AE_spacing1p5/AE_best.pt",
+  "sub_ae_ckpt": "ckpts/AE/sub_AE_second_spacing1p5/AE_best.pt",
   "sub_unet_ckpt": "ckpts/UNET/sub_UNET_spacing1p5/UNET_last.pt",
 
   "whole_ae_latent_ch": 8,
