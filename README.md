@@ -206,10 +206,52 @@ python3 scripts/train_3d_brain_ldm_hemi.py --config configs/hemi_LDM_spacing1p5.
 <pre>
 python3 scripts/train_3d_brain_ldm_steps.py --config configs/sub_LDM_spacing1p5.json
 </pre>
-
-
   
 </details>
+
+## Compositional fusion LDM for whole brain
+<pre>
+python3 scripts/train_3d_brain_ldm_aux_taux.py   --config configs/whole_brain_aux_taux_spacing1p5.json
+</pre>
+
+
+
+# Baselines
+<details>
+<summary><strong>Baselines</strong></summary>
+
+## Baseline 1: LDM
+- This step is completed. Please proceed to the following baseline experiments.
+
+## Baseline 2: MorphLDM
+- Please follow the run instructions in: https://github.com/tracyhann/3D_Brain_partsLDM/tree/tracy_0220_ddp/morphldm_128#1-spacing-15-setup NOTE: please follow step 1 only, train BOTH MorphLDM AE + diffusion at spacing = 1.5. MorphLDM AE is a specialized AE based on template warping.
+- Please feel free to adapt the code to a data parallel version if multiple GPUs are available. When adapting to enable ddp, you may use `scripts/train_3d_ldm_steps_ddp.py` as a template. Please name the new ddp script in *_ddp.py format.
+
+## Baseline 3: Segmentation-mask-guided LDM (Med-DDPM style)
+- Download pretrained AE weights from https://huggingface.co/tracyhan816/3D_Brain_partsLDM/tree/main/ckpts
+- Place the dir `ckpts/*` under the project dir `3D_Brain_partsLDM`. The organization looks like below:
+<pre>
+3D_Brain_partsLDM
+├── ckpts
+│   └── AE
+│       └── whole_brain_AE_spacing1p5
+│           ├── AE_best.pt
+|           ...
+</pre>
+- For this experiment, we can use the pretrained ckpt for AE at `ckpts/AE/whole_brain_AE_spacing1p5`
+
+```bash
+python3 scripts/train_3d_brain_ldm_segm.py --config configs/whole_brain_segmLDM_spacing1p5.json
+```
+- Please feel free to adapt the code to a data parallel version if multiple GPUs are available. When adapting to enable ddp, you may use `scripts/train_3d_ldm_steps_ddp.py` as a template. Please name the new ddp script in *_ddp.py format.
+
+## Baseline 4: 3D VAE GAN
+- COMING SOON.
+
+</details>
+
+
+
 
 
 # Ablations
