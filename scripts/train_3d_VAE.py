@@ -439,6 +439,7 @@ def main():
         transforms.EnsureTyped(keys=keys),
         transforms.Spacingd(keys=keys, pixdim=spacing, mode=("bilinear")),
         transforms.DivisiblePadd(keys=keys, k=32, mode="constant",constant_values=-1.0),
+        transforms.CenterSpatialCropd(keys=keys,roi_size=size),
         ]
     )
 
