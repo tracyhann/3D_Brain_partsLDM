@@ -57,9 +57,9 @@
   "ldm_lr": 0.0001,
   "lambda_aux": 1.0,
   "aux_every": 1,
-  "taux_min": 50,
-  "taux_max": 100,
-  "part_taux_max": 50,
+  "taux_min": 150,
+  "taux_max": 300,
+  "part_taux_max": 300,
   "scaffold_mode": "forward_noise",
   "eval_scaffold_mode": "sample",
 
