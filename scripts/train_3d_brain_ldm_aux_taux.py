@@ -392,12 +392,12 @@ def load_template_masks(
     mL = align_binary_mask_to_shape(
         (out["lhemi_mask"] > 0).float(),
         target_shape=whole_shape,
-        anchors=("start", "start", "start"),
+        anchors=("end", "start", "start"),
     ).to(device)
     mR = align_binary_mask_to_shape(
         (out["rhemi_mask"] > 0).float(),
         target_shape=whole_shape,
-        anchors=("end", "start", "start"),
+        anchors=("start", "start", "start"),
     ).to(device)
     mS = align_binary_mask_to_shape(
         (out["sub_mask"] > 0).float(),
@@ -442,6 +442,11 @@ def downsample_mask_any_voxel(mask: torch.Tensor, latent_shape: Tuple[int, int, 
 def _flip_lr(x: torch.Tensor) -> torch.Tensor:
     # left-right canonicalization along first spatial axis (D in [B,C,D,H,W]).
     return torch.flip(x, dims=[2])
+
+
+def _apply_binary_mask_bg(x: torch.Tensor, mask: torch.Tensor, bg_value: float) -> torch.Tensor:
+    m = (mask > 0.5).float()
+    return x * m + bg_value * (1.0 - m)
 
 
 def _crop_left(x: torch.Tensor, hemi_shape: Tuple[int, int, int]) -> torch.Tensor:
@@ -691,9 +696,8 @@ def _run_part_expert(
     amp_enabled: bool,
     context: Optional[torch.Tensor] = None,
 ) -> torch.Tensor:
-    z0 = part_ae.encode_stage_2_inputs(x_part_masked) * scale_factor
-    t_batch = torch.full((z0.shape[0],), int(t_aux), device=z0.device, dtype=torch.long)
-    z_taux = scheduler.add_noise(original_samples=z0, noise=torch.randn_like(z0), timesteps=t_batch)
+    # Part expert path: encode decoded x_taux crop, then denoise t_aux -> 0 directly.
+    z_taux = part_ae.encode_stage_2_inputs(x_part_masked) * scale_factor
     z_hat0 = _reverse_ddpm_to_t0(
         unet=part_unet,
         scheduler=scheduler,
@@ -770,21 +774,21 @@ def build_expert_composite_branch(
 
     x_whole_taux = whole_ae.decode_stage_2_outputs(z_whole_taux / whole_scale_factor)
 
-    # Build part inputs from decoded whole scaffold at t_aux.
-    x_lhemi_raw = _crop_left(x_whole_taux, hemi_shape)
-    x_rhemi_raw = _crop_right(x_whole_taux, hemi_shape)
-    x_rhemi_leftcanon = _flip_lr(x_rhemi_raw)
-    x_sub_raw = _crop_sub(x_whole_taux, sub_shape)
+    # Build part inputs from decoded whole scaffold at t_aux:
+    # apply full-volume template masks first, then crop to part shapes.
+    mL_world = mask_ctx["mL"].expand(batch_size, -1, -1, -1, -1)
+    mR_world = mask_ctx["mR"].expand(batch_size, -1, -1, -1, -1)
+    mS_world = mask_ctx["mS"].expand(batch_size, -1, -1, -1, -1)
 
-    # Use template masks for part inputs.
-    mL_crop = _crop_left(mask_ctx["mL"].expand(batch_size, -1, -1, -1, -1), hemi_shape)
-    mR_crop_raw = _crop_right(mask_ctx["mR"].expand(batch_size, -1, -1, -1, -1), hemi_shape)
-    mR_crop_leftcanon = _flip_lr(mR_crop_raw)
-    mS_crop = _crop_sub(mask_ctx["mS"].expand(batch_size, -1, -1, -1, -1), sub_shape)
+    x_lhemi_whole_masked = _apply_binary_mask_bg(x_whole_taux, mL_world, bg_value)
+    x_rhemi_whole_masked = _apply_binary_mask_bg(x_whole_taux, mR_world, bg_value)
+    x_sub_whole_masked = _apply_binary_mask_bg(x_whole_taux, mS_world, bg_value)
 
-    x_lhemi_in_masked = x_lhemi_raw * mL_crop + bg_value * (1.0 - mL_crop)
-    x_rhemi_in_masked = x_rhemi_leftcanon * mR_crop_leftcanon + bg_value * (1.0 - mR_crop_leftcanon)
-    x_sub_in_masked = x_sub_raw * mS_crop + bg_value * (1.0 - mS_crop)
+    # With current template placement, lhemi occupies high-index x and rhemi low-index x.
+    x_lhemi_in_masked = _crop_right(x_lhemi_whole_masked, hemi_shape)
+    x_rhemi_masked_raw = _crop_left(x_rhemi_whole_masked, hemi_shape)
+    x_rhemi_in_masked = _flip_lr(x_rhemi_masked_raw)
+    x_sub_in_masked = _crop_sub(x_sub_whole_masked, sub_shape)
 
     # Run frozen part experts once at shared t_aux.
     left_ids = torch.zeros((batch_size,), device=z_whole0_ref.device, dtype=torch.long)
@@ -1170,13 +1174,13 @@ def train_ldm_aux_taux(
 
     if hemi_scale_factor is None or sub_scale_factor is None:
         ref_img = first(train_loader)["image"].to(device)[:1]
-        mL = _crop_left(mask_ctx["mL"], hemi_shape)
-        mR = _flip_lr(_crop_right(mask_ctx["mR"], hemi_shape))
-        mS = _crop_sub(mask_ctx["mS"], sub_shape)
-        xL = _crop_left(ref_img, hemi_shape) * mL + bg_value * (1.0 - mL)
-        xR = _flip_lr(_crop_right(ref_img, hemi_shape))
-        xR = xR * mR + bg_value * (1.0 - mR)
-        xS = _crop_sub(ref_img, sub_shape) * mS + bg_value * (1.0 - mS)
+        xL_whole_masked = _apply_binary_mask_bg(ref_img, mask_ctx["mL"], bg_value)
+        xR_whole_masked = _apply_binary_mask_bg(ref_img, mask_ctx["mR"], bg_value)
+        xS_whole_masked = _apply_binary_mask_bg(ref_img, mask_ctx["mS"], bg_value)
+        xL = _crop_right(xL_whole_masked, hemi_shape)
+        xR_masked_raw = _crop_left(xR_whole_masked, hemi_shape)
+        xR = _flip_lr(xR_masked_raw)
+        xS = _crop_sub(xS_whole_masked, sub_shape)
 
         if hemi_scale_factor is None:
             hemi_scale_factor = _estimate_scale_factor_from_batch(
