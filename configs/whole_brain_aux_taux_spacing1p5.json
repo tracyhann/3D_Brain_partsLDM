@@ -70,7 +70,7 @@
 
   "ckpt_every": 5000,
   "last_every": 2000,
-  "eval_every": 10,
+  "eval_every": 5000,
   "simple_eval_every": 2000,
   "eval_n": 2,
   "eval_val_batches": 8,
