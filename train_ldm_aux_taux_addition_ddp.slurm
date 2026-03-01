@@ -1,5 +1,3 @@
-set -euo pipefail
-
 #!/bin/bash
 #SBATCH -J aux_ldm_brain_addition
 #SBATCH -A ASC26009
