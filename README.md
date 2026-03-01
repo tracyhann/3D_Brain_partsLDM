@@ -306,3 +306,11 @@ CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --standalone --nnodes=1 --nproc_per_node=4
 </details>
 
 
+<details>
+<summary><strong>Ablation 3: Soft part fusion LDM</strong></summary>
+
+<pre>
+python3 scripts/train_3d_brain_ldm_aux_taux_addition.py \
+  --config configs/whole_brain_aux_taux_spacing1p5_ADDITION.json
+</pre>
+
