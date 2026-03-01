@@ -55,11 +55,12 @@
 
   "max_steps": 20000,
   "ldm_lr": 0.0001,
-  "lambda_aux": 1.0,
+  "lambda_aux": 0.5,
+  "lambda_seam": 0.1,
   "aux_every": 1,
-  "taux_min": 150,
+  "taux_min": 100,
   "taux_max": 300,
-  "part_taux_max": 300,
+  "part_taux_max": 200,
   "scaffold_mode": "forward_noise",
   "eval_scaffold_mode": "sample",
 
@@ -70,7 +71,7 @@
 
   "ckpt_every": 5000,
   "last_every": 2000,
-  "eval_every": 10,
+  "eval_every": 5000,
   "simple_eval_every": 2000,
   "eval_n": 2,
   "eval_val_batches": 8,
