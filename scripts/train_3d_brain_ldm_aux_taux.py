@@ -773,6 +773,7 @@ def build_expert_composite_branch(
         raise ValueError(f"Unknown scaffold_mode: {scaffold_mode}")
 
     x_whole_taux = whole_ae.decode_stage_2_outputs(z_whole_taux / whole_scale_factor)
+    # x_whole_taux: [B,1,D,H,W], bg is near -1
 
     # Build part inputs from decoded whole scaffold at t_aux:
     # apply full-volume template masks first, then crop to part shapes.
@@ -860,6 +861,15 @@ def build_expert_composite_branch(
         mask_ctx["m_known"].expand(batch_size, -1, -1, -1, -1),
         latent_shape=tuple(z_coarse0.shape[-3:]),
     )
+
+    m_head = (x_whole_taux > (bg_value + 0.05)).float()
+    m_coarse = (x_coarse > (bg_value + 0.05)).float()
+    m_seam = torch.clamp(m_head - m_coarse, min=0.0, max=1.0)
+    m_seam = (m_seam > 0.5).float()
+
+    m_seam_lat = downsample_mask_any_voxel(m_seam, latent_shape=tuple(z_coarse0.shape[-3:]))
+
+
     z_mix_taux = (1.0 - mask_lat) * z_whole_taux + mask_lat * z_coarse_taux
 
     return {
@@ -878,6 +888,7 @@ def build_expert_composite_branch(
         "mask_lat": mask_lat,
         "t_aux": int(t_aux),
         "t_part_aux": int(t_part_aux),
+        "m_seam_lat": m_seam_lat,
     }
 
 
@@ -1127,6 +1138,7 @@ def train_ldm_aux_taux(
     hemi_scale_factor: Optional[float],
     sub_scale_factor: Optional[float],
     lambda_aux: float,
+    lambda_seam: float,
     aux_every: int,
     taux_min: int,
     taux_max: int,
@@ -1310,6 +1322,7 @@ def train_ldm_aux_taux(
                 )
                 z_coarse0 = payload["z_coarse0"]
                 mask_lat = payload["mask_lat"]
+                m_seam_lat = payload["m_seam_lat"]
 
             # Auxiliary latent trajectory loss only for t <= t_aux.
             active = timesteps <= int(t_aux)
@@ -1326,6 +1339,11 @@ def train_ldm_aux_taux(
                     noise=torch.randn_like(z_coarse0),
                     timesteps=t_prev,
                 )
+                z_whole_tm1 = scheduler.add_noise(
+                    original_samples=z_whole0,
+                    noise=torch.randn_like(z_whole0),
+                    timesteps=t_prev,
+                )
 
                 m = mask_lat
                 if m.shape[0] != z_pred_tm1.shape[0]:
@@ -1333,13 +1351,22 @@ def train_ldm_aux_taux(
                 diff = (z_pred_tm1[active] - z_coarse_tm1[active]) * m[active]
                 denom = m[active].sum() * z_pred_tm1.shape[1] + 1e-6
                 loss_aux = diff.float().pow(2).sum() / denom.float()
+
+                m_seam = m_seam_lat
+                if m_seam.shape[0] != z_pred_tm1.shape[0]:
+                    m_seam = m_seam.expand(z_pred_tm1.shape[0], -1, -1, -1, -1)
+                diff_seam = (z_pred_tm1[active] - z_whole_tm1[active]) * m_seam[active]
+                denom_seam = m_seam[active].sum() * z_pred_tm1.shape[1] + 1e-6
+                loss_seam = diff_seam.float().pow(2).sum() / denom_seam.float()
             else:
                 loss_aux = torch.zeros((), device=device, dtype=loss_std.dtype)
+                loss_seam = torch.zeros((), device=device, dtype=loss_std.dtype)
         else:
             t_aux = -1
             loss_aux = torch.zeros((), device=device, dtype=loss_std.dtype)
+            loss_seam = torch.zeros((), device=device, dtype=loss_std.dtype)
 
-        loss = loss_std + float(lambda_aux) * loss_aux
+        loss = loss_std + float(lambda_aux) * loss_aux + float(lambda_seam) * loss_seam
 
         scaler.scale(loss).backward()
         scaler.step(optimizer)
@@ -1359,6 +1386,7 @@ def train_ldm_aux_taux(
                 "loss": f"{avg_loss:.6f}",
                 "std": f"{float(loss_std.item()):.5f}",
                 "aux": f"{float(loss_aux.item()):.5f}",
+                "seam": f"{float(loss_seam.item()):.5f}",
                 "taux": "-" if t_aux < 0 else int(t_aux),
                 "aux_step": int(do_aux),
                 "sf": f"{whole_scale_factor:.4f}",
@@ -1372,6 +1400,7 @@ def train_ldm_aux_taux(
                     "loss": avg_loss,
                     "loss_std": float(loss_std.item()),
                     "loss_aux": float(loss_aux.item()),
+                    "loss_seam": float(loss_seam.item()),
                 }
             )
 
@@ -1567,6 +1596,12 @@ def main():
     ap.add_argument("--max_steps", type=int, default=120_000)
     ap.add_argument("--ldm_lr", type=float, default=1e-4)
     ap.add_argument("--lambda_aux", type=float, default=1.0)
+    ap.add_argument(
+        "--lambda_seam",
+        type=float,
+        default=0.0,
+        help="Weight for seam-band latent loss in m_seam_lat (toward whole latent trajectory).",
+    )
     ap.add_argument("--aux_every", type=int, default=1, help="Run expensive TAux branch every N steps.")
     ap.add_argument("--taux_min", type=int, default=50)
     ap.add_argument("--taux_max", type=int, default=200)
@@ -1639,6 +1674,8 @@ def main():
         ap.error("Require part_taux_max < 1000 (or -1 to disable cap).")
     if int(args.aux_every) < 1:
         ap.error("Require aux_every >= 1.")
+    if float(args.lambda_seam) < 0.0:
+        ap.error("Require lambda_seam >= 0.")
     valid_scaffold = {"sample", "forward_noise"}
     if str(args.scaffold_mode) not in valid_scaffold:
         ap.error("Require scaffold_mode in {'sample','forward_noise'}.")
@@ -1826,6 +1863,7 @@ def main():
         hemi_scale_factor=hemi_sf,
         sub_scale_factor=sub_sf,
         lambda_aux=float(args.lambda_aux),
+        lambda_seam=float(args.lambda_seam),
         aux_every=int(args.aux_every),
         taux_min=int(args.taux_min),
         taux_max=int(args.taux_max),
