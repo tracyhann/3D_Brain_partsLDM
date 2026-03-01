@@ -1,7 +1,7 @@
 set -euo pipefail
 
 #!/bin/bash
-#SBATCH -J aux_ldm_brain
+#SBATCH -J aux_ldm_brain_addition
 #SBATCH -A ASC26009
 #SBATCH -p gh
 #SBATCH -N 16                # 节点数；按需改
