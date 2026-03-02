@@ -450,14 +450,15 @@ def train_ldm_aux_taux_ddp(
                     timesteps=timesteps,
                 )
                 t_prev = torch.clamp(timesteps - 1, min=0)
+                noise_aux = torch.randn_like(z_coarse0)
                 z_coarse_tm1 = scheduler.add_noise(
                     original_samples=z_coarse0,
-                    noise=torch.randn_like(z_coarse0),
+                    noise=noise_aux,
                     timesteps=t_prev,
                 )
                 z_whole_tm1 = scheduler.add_noise(
                     original_samples=z_whole0,
-                    noise=torch.randn_like(z_whole0),
+                    noise=noise_aux,
                     timesteps=t_prev,
                 )
 
@@ -812,6 +813,10 @@ def main():
     valid_scaffold = {"sample", "forward_noise"}
     if str(args.scaffold_mode) not in valid_scaffold:
         ap.error("Require scaffold_mode in {'sample','forward_noise'}.")
+    if str(args.scaffold_mode) != "forward_noise":
+        print(f"Training scaffold_mode defaults to forward-noised for noise coupling.")
+        args.scaffold_mode = "forward_noise"
+        args.eval_scaffold_mode = args.scaffold_mode
     if str(args.eval_scaffold_mode).strip() != "" and str(args.eval_scaffold_mode) not in valid_scaffold:
         ap.error("Require eval_scaffold_mode in {'sample','forward_noise'} (or empty).")
 
