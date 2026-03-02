@@ -1,9 +1,9 @@
 """
-DDP trainer for train_3d_brain_ldm_mask.py (step-based mask-conditioned LDM stage).
+DDP trainer for train_3d_brain_ldm_segm.py (step-based segmentation-mask conditioned LDM stage).
 
 Example (4 GPUs):
-CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --standalone --nnodes=1 --nproc_per_node=4 scripts/train_3d_ldm_mask_ddp.py \
-  --config configs/whole_brain_maskLDM_spacing2.json
+CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --standalone --nnodes=1 --nproc_per_node=4 \
+  scripts/train_3d_brain_ldm_segm_ddp.py --config configs/whole_brain_segmLDM_spacing1p5.json
 """
 
 from __future__ import annotations
@@ -32,7 +32,7 @@ from generative.networks.schedulers import DDPMScheduler
 SCRIPT_DIR = Path(__file__).resolve().parent
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
-import train_3d_brain_ldm_mask as base  # noqa: E402
+import train_3d_brain_ldm_segm as base  # noqa: E402
 
 
 def parse_bool(val: Any) -> bool:
@@ -63,20 +63,21 @@ def make_dataloaders_from_csv_ddp(
     *,
     csv_path: str,
     rank: int,
-    whole_key: str,
-    lhemi_key: str,
-    rhemi_key: str,
-    sub_key: str,
+    image_key: str,
+    whole_mask_key: str,
+    lhemi_mask_key: str,
+    rhemi_mask_key: str,
+    sub_mask_key: str,
     conditions=None,
     train_transforms=None,
-    n_samples="ALL",
+    n_samples: Optional[int] = None,
     data_split_json_path: str = "data/patient_splits_image_ids_75_10_15.json",
     batch_size: int = 1,
     num_workers: int = 8,
     seed: int = 1017,
 ):
     if conditions is None:
-        conditions = ["age", "sex", "vol", "group"]
+        conditions = ["age", "sex", "group"]
 
     with open(data_split_json_path, "r", encoding="utf-8") as f:
         splits = json.load(f)
@@ -99,10 +100,11 @@ def make_dataloaders_from_csv_ddp(
             continue
 
         sample = {
-            "whole": row[whole_key],
-            "lhemi": row[lhemi_key],
-            "rhemi": row[rhemi_key],
-            "sub": row[sub_key],
+            "image": row[image_key],
+            "whole_brain_mask": row[whole_mask_key],
+            "lhemi_mask": row[lhemi_mask_key],
+            "rhemi_mask": row[rhemi_mask_key],
+            "sub_mask": row[sub_mask_key],
         }
         for c in conditions:
             if c in row:
@@ -112,7 +114,7 @@ def make_dataloaders_from_csv_ddp(
         if split == "train":
             train_data.append(sample)
             train_added += 1
-            if n_samples != "ALL" and train_added >= n_samples:
+            if n_samples is not None and train_added >= n_samples:
                 break
         elif split == "val":
             val_data.append(sample)
@@ -165,7 +167,6 @@ def train_ldm_steps_ddp(
     lr: float = 1e-4,
     scale_factor: Optional[float] = None,
     torch_autocast: bool = True,
-    coarse_valid_thresh: float = -0.995,
     device=torch.device("cuda"),
     outdir: str = "ckpts",
     ckpt_every: int = 10_000,
@@ -197,14 +198,14 @@ def train_ldm_steps_ddp(
     if scale_factor is None:
         with torch.no_grad(), torch.amp.autocast("cuda", enabled=amp_enabled):
             batch0 = next(iter(train_loader))
-            z = autoencoder.encode_stage_2_inputs(batch0["whole"].to(device))
+            z = autoencoder.encode_stage_2_inputs(batch0["image"].to(device))
             local_std = torch.std(z).detach()
         std_tensor = local_std.to(device=device, dtype=torch.float64)
         dist.all_reduce(std_tensor, op=dist.ReduceOp.SUM)
         std_tensor = std_tensor / max(1, world_size)
         scale_factor = float(1.0 / max(std_tensor.item(), 1e-8))
         if rank == 0:
-            print(f"[LDM-mask-DDP] scale_factor set to {scale_factor}")
+            print(f"[LDM-segm-DDP] scale_factor set to {scale_factor}")
 
     optimizer = torch.optim.AdamW(ddp_unet.parameters(), lr=lr, weight_decay=1e-2)
     scaler = torch.amp.GradScaler("cuda", enabled=amp_enabled)
@@ -289,35 +290,29 @@ def train_ldm_steps_ddp(
             data_iter = iter(train_loader)
             batch = next(data_iter)
 
-        whole = batch["whole"].to(device)
-        lhemi = batch["lhemi"].to(device)
-        rhemi = batch["rhemi"].to(device)
-        sub = batch["sub"].to(device)
-        coarse = base.build_coarse_brain_from_parts(
-            whole,
-            lhemi,
-            rhemi,
-            sub,
-            valid_thresh=coarse_valid_thresh,
-        )
+        images = batch["image"].to(device)
 
         optimizer.zero_grad(set_to_none=True)
 
         with torch.no_grad():
-            z = autoencoder.encode_stage_2_inputs(whole) * scale_factor
-            z_ctx = autoencoder.encode_stage_2_inputs(coarse) * scale_factor
+            z = autoencoder.encode_stage_2_inputs(images) * scale_factor
+            cond_lat = base.build_mask_condition_latents(
+                batch=batch,
+                device=device,
+                latent_shape=tuple(z.shape[-3:]),
+            )
 
         noise = torch.randn_like(z)
         timesteps = torch.randint(
             0,
             scheduler.num_train_timesteps,
-            (whole.shape[0],),
+            (images.shape[0],),
             device=device,
         ).long()
         z_t = scheduler.add_noise(original_samples=z, noise=noise, timesteps=timesteps)
 
         with torch.amp.autocast("cuda", enabled=amp_enabled):
-            model_input = torch.cat([z_t, z_ctx], dim=1)
+            model_input = torch.cat([z_t, cond_lat], dim=1)
             noise_pred = ddp_unet(model_input, timesteps=timesteps)
             loss = F.mse_loss(noise_pred.float(), noise.float())
 
@@ -390,7 +385,6 @@ def train_ldm_steps_ddp(
                     device=device,
                     scale_factor=scale_factor,
                     torch_autocast=torch_autocast,
-                    coarse_valid_thresh=coarse_valid_thresh,
                     outdir=outdir,
                     global_step=global_step,
                     eval_n=eval_n,
@@ -409,7 +403,6 @@ def train_ldm_steps_ddp(
                     device=device,
                     scale_factor=scale_factor,
                     torch_autocast=torch_autocast,
-                    coarse_valid_thresh=coarse_valid_thresh,
                     val_batches=simple_eval_val_batches,
                 )
                 history["simple_eval"].append({"step": global_step, **metrics})
@@ -443,19 +436,20 @@ def main():
     pre_args, _ = pre_ap.parse_known_args()
 
     ap = argparse.ArgumentParser(
-        description="DDP wrapper for train_3d_brain_ldm_mask.py.",
+        description="DDP wrapper for train_3d_brain_ldm_segm.py.",
         parents=[pre_ap],
     )
-    ap.add_argument("--csv", default="", help="Path to CSV with whole/lhemi/rhemi/sub paths.")
+    ap.add_argument("--csv", default="data/processed_parts/whole_brain+3parts+masks_0206.csv")
     ap.add_argument(
         "--data_split_json_path",
         default="data/patient_splits_image_ids_75_10_15.json",
         help="JSON file with train/val/test imageID splits.",
     )
-    ap.add_argument("--whole_key", default="whole_brain")
-    ap.add_argument("--lhemi_key", default="lhemi")
-    ap.add_argument("--rhemi_key", default="rhemi")
-    ap.add_argument("--sub_key", default="sub")
+    ap.add_argument("--image_key", default="whole_brain")
+    ap.add_argument("--whole_mask_key", default="whole_brain_mask")
+    ap.add_argument("--lhemi_mask_key", default="lhemi_mask")
+    ap.add_argument("--rhemi_mask_key", default="rhemi_mask")
+    ap.add_argument("--sub_mask_key", default="sub_mask")
 
     ap.add_argument("--spacing", default="1,1,1", help="Target spacing mm (e.g., 1,1,1)")
     ap.add_argument("--size", default="160,224,160", help="Volume D,H,W (e.g., 160,224,160)")
@@ -464,7 +458,6 @@ def main():
     ap.add_argument("--torch_autocast", default=True, help="Use torch autocast to accelerate: True or False.")
     ap.add_argument("--n_samples", default="ALL")
     ap.add_argument("--train_val_split", type=float, default=0.1)
-    ap.add_argument("--coarse_valid_thresh", type=float, default=-0.995)
     ap.add_argument("--seed", type=int, default=1017)
 
     # Compatibility with non-DDP configs/scripts.
@@ -545,6 +538,11 @@ def main():
         if resume_ckpt and not os.path.exists(resume_ckpt):
             raise FileNotFoundError(f"Resume checkpoint not found: {resume_ckpt}")
 
+        if args.stage == "ae":
+            if rank == 0:
+                print("Stage 'ae' is not implemented in this script. Use a pretrained AE and stage='ldm'.")
+            return
+
         if rank == 0:
             cfg = vars(args).copy()
             cfg["resolved_resume_ckpt"] = resume_ckpt
@@ -557,8 +555,15 @@ def main():
 
         spacing = tuple(float(x) for x in args.spacing.split(","))
         size = tuple(int(x) for x in args.size.split(","))
-        keys = ["whole", "lhemi", "rhemi", "sub"]
-        train_transforms = base.build_transforms(keys=keys, spacing=spacing, whole_size=size)
+        train_transforms = base.build_transforms(
+            image_key="image",
+            whole_mask_key="whole_brain_mask",
+            lhemi_mask_key="lhemi_mask",
+            rhemi_mask_key="rhemi_mask",
+            sub_mask_key="sub_mask",
+            spacing=spacing,
+            whole_size=size,
+        )
 
         device = torch.device(f"cuda:{local_rank}")
         base.seed_all(args.seed + rank)
@@ -567,16 +572,17 @@ def main():
         try:
             n_samples = int(args.n_samples)
         except Exception:
-            n_samples = args.n_samples
+            n_samples = None
 
         train_loader, val_loader, test_loader, train_sampler = make_dataloaders_from_csv_ddp(
             csv_path=args.csv,
             rank=rank,
-            whole_key=args.whole_key,
-            lhemi_key=args.lhemi_key,
-            rhemi_key=args.rhemi_key,
-            sub_key=args.sub_key,
-            conditions=["age", "sex", "vol", "group"],
+            image_key=args.image_key,
+            whole_mask_key=args.whole_mask_key,
+            lhemi_mask_key=args.lhemi_mask_key,
+            rhemi_mask_key=args.rhemi_mask_key,
+            sub_mask_key=args.sub_mask_key,
+            conditions=["age", "sex", "group"],
             train_transforms=train_transforms,
             n_samples=n_samples,
             data_split_json_path=args.data_split_json_path,
@@ -613,7 +619,7 @@ def main():
         ldm_num_head_channels = tuple(int(x) for x in args.ldm_num_head_channels.split(","))
         unet = base.DiffusionModelUNet(
             spatial_dims=3,
-            in_channels=ae_latent_ch * 2,
+            in_channels=ae_latent_ch + 4,
             out_channels=ae_latent_ch,
             num_res_blocks=2,
             num_channels=ldm_num_channels,
@@ -647,7 +653,6 @@ def main():
                 lr=args.ldm_lr,
                 scale_factor=scale_factor,
                 torch_autocast=torch_autocast,
-                coarse_valid_thresh=float(args.coarse_valid_thresh),
                 device=device,
                 outdir=args.outdir,
                 ckpt_every=args.ckpt_every,

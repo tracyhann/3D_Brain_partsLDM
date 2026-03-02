@@ -96,10 +96,13 @@ hf datasets info tracyhan816/3D_brain_partLDM_data
 └── train_ldm_wholebrain.slurm
 </pre>
 
-
+#### When running the following cmds, replace `<PATH_TO_PROJECT>` 
 # Ours
 
 ## Compositional fusion LDM for whole brain
+
+<details>
+<summary><strong>Details</strong></summary>
 
 #### Estimated runtime: ~160 GPU hours on H100
 
@@ -118,17 +121,33 @@ sbatch -N 12 --ntasks-per-node=1 --gpus-per-node=8 \
   train_ldm_aux_taux_ddp.slurm
 ```
 
-##### Launch 64-GPU DDP Training (8 nodes × 8 GPUs)
+</details>
+
+# Baselines
+## Baseline 3: Segmentation-mask-guided LDM (Med-DDPM style)
+<details>
+<summary><strong>Details</strong></summary>
+
+#### *Estimated* runtime: ~100 GPU hours on H100
+
+- The actual runtime of this experiment has not been tested.
+
+#### Launch 96-GPU DDP Training (12 nodes × 8 GPUs)
 
 ```bash
 cd <PATH_TO_PROJECT>/3D_Brain_partsLDM
-sbatch -N 8 --ntasks-per-node=1 --gpus-per-node=8 \
-  --export=ALL,PROJECT_ROOT=<PATH_TO_PROJECT>/3D_Brain_partsLDM,NPROC_PER_NODE=8,CONFIG=configs/whole_brain_aux_taux_spacing1p5.json,MASTER_PORT=29600,MAX_RESTARTS=20,MAX_REQUEUE=10 \
-  train_ldm_aux_taux_ddp.slurm
+sbatch -N 12 --ntasks-per-node=1 --gpus-per-node=8 \
+  --export=ALL,PROJECT_ROOT=<PATH_TO_PROJECT>/3D_Brain_partsLDM,NPROC_PER_NODE=8,CONFIG=configs/whole_brain_segmLDM_spacing1p5.json,MASTER_PORT=29630,MAX_RESTARTS=20,MAX_REQUEUE=10 \
+  train_ldm_segm_ddp.slurm
 ```
 
+</details>
+
+
+
+
 # Ablations
-## Ablation 3: Soft part fusion LDM
+## Ablation 1: Soft part fusion LDM
 <details>
 <summary><strong>Details</strong></summary>
 
@@ -149,18 +168,41 @@ sbatch -N 12 --ntasks-per-node=1 --gpus-per-node=8 \
   train_ldm_aux_taux_addition_ddp.slurm
 ```
 
-#### Launch 64-GPU DDP Training (8 nodes × 8 GPUs)
+
+</details>
+
+
+## Ablation 2: Context conditioning cLDM for fusion of parts
+<details>
+<summary><strong>Details</strong></summary>
+
+#### *Estimated* runtime: ~100 + 160 GPU hours on H100 (2 steps)
+
+- The actual runtime of this experiment has not been tested.
+- The slurm job below will run 2 steps consecutively.
+
+### Slurm:
+#### Launch 96-GPU DDP Training (12 nodes × 8 GPUs)
 
 ```bash
 cd <PATH_TO_PROJECT>/3D_Brain_partsLDM
-sbatch -N 8 --ntasks-per-node=1 --gpus-per-node=8 \
-  --export=ALL,PROJECT_ROOT=<PATH_TO_PROJECT>/3D_Brain_partsLDM,NPROC_PER_NODE=8,CONFIG=configs/configs/whole_brain_aux_taux_spacing1p5_ADDITION.json,MASTER_PORT=29600,MAX_RESTARTS=20,MAX_REQUEUE=10 \
-  train_ldm_aux_taux_addition_ddp.slurm
+
+job1=$(sbatch --parsable -N 12 --ntasks-per-node=1 --gpus-per-node=8 \
+  --export=ALL,PROJECT_ROOT=<PATH_TO_PROJECT>/3D_Brain_partsLDM,NPROC_PER_NODE=8,CONFIG=configs/whole_brain_maskLDM_spacing1p5.json,MASTER_PORT=29610,MAX_RESTARTS=20,MAX_REQUEUE=10 \
+  train_ldm_mask_ddp.slurm)
+
+job2=$(sbatch --parsable --dependency=afterok:${job1} -N 12 --ntasks-per-node=1 --gpus-per-node=8 \
+  --export=ALL,PROJECT_ROOT=<PATH_TO_PROJECT>/3D_Brain_partsLDM,NPROC_PER_NODE=8,CONFIG=configs/whole_brain_aux_taux_spacing1p5_CONTEXT.json,MASTER_PORT=29620,MAX_RESTARTS=20,MAX_REQUEUE=10 \
+  train_ldm_aux_taux_context_ddp.slurm)
+
+echo "step1=${job1}"
+echo "step2=${job2} (afterok:${job1})"
 ```
 
 </details>
 
-## Ablation 4: No Aux
+
+## Ablation 3: No Aux
 <details>
 <summary><strong>Details</strong></summary>
 
@@ -181,13 +223,69 @@ sbatch -N 12 --ntasks-per-node=1 --gpus-per-node=8 \
   train_ldm_aux_taux_ddp.slurm
 ```
 
-#### Launch 64-GPU DDP Training (8 nodes × 8 GPUs)
+
+</details>
+
+
+
+## Ablation 4: No shared AEs across hemispheres
+<details>
+<summary><strong>Details</strong></summary>
+
+#### *Estimated* runtime: ~100 * 2 + 160 GPU hours on H100
+
+- The actual runtime of this experiment has not been tested.
+- Each hemi model takes < 100 hrs run time, followed by the fusion model.
+- The following cmd runs all three steps consecutively (concurrently step 1, 2, followed by step 3).
+
+
+### Full job (3 steps):
+#### Launch 96-GPU DDP Training (12 nodes × 8 GPUs)
 
 ```bash
 cd <PATH_TO_PROJECT>/3D_Brain_partsLDM
-sbatch -N 8 --ntasks-per-node=1 --gpus-per-node=8 \
-  --export=ALL,PROJECT_ROOT=<PATH_TO_PROJECT>/3D_Brain_partsLDM,NPROC_PER_NODE=8,CONFIG=configs/whole_brain_aux_taux_spacing1p5_NO_AUX.json,MASTER_PORT=29600,MAX_RESTARTS=20,MAX_REQUEUE=10 \
-  train_ldm_aux_taux_ddp.slurm
+NODES=12 GPUS_PER_NODE=8 NPROC_PER_NODE=8 MAX_RESTARTS=20 MAX_REQUEUE=10 ./submit_diffhemi_pipeline.sh
 ```
+
+### To run jobs independently:
+
+#### lhemi
+```bash
+cd <PATH_TO_PROJECT>/3D_Brain_partsLDM
+sbatch -N 12 --ntasks-per-node=1 --gpus-per-node=8 \
+  --export=ALL,PROJECT_ROOT=<PATH_TO_PROJECT>/3D_Brain_partsLDM,NPROC_PER_NODE=8,CONFIG=configs/lhemi_AE_spacing1p5.json,MASTER_PORT=29600,MAX_RESTARTS=20,MAX_REQUEUE=10 \
+  train_ae_lhemi.slurm
+```
+```bash
+cd <PATH_TO_PROJECT>/3D_Brain_partsLDM
+sbatch -N 12 --ntasks-per-node=1 --gpus-per-node=8 \
+  --export=ALL,PROJECT_ROOT=<PATH_TO_PROJECT>/3D_Brain_partsLDM,NPROC_PER_NODE=8,CONFIG=configs/lhemi_LDM_spacing1p5.json,MASTER_PORT=29600,MAX_RESTARTS=20,MAX_REQUEUE=10 \
+  train_ldm_lhemi.slurm
+```
+
+
+#### rhemi
+```bash
+cd <PATH_TO_PROJECT>/3D_Brain_partsLDM
+sbatch -N 12 --ntasks-per-node=1 --gpus-per-node=8 \
+  --export=ALL,PROJECT_ROOT=<PATH_TO_PROJECT>/3D_Brain_partsLDM,NPROC_PER_NODE=8,CONFIG=configs/rhemi_AE_spacing1p5.json,MASTER_PORT=29600,MAX_RESTARTS=20,MAX_REQUEUE=10 \
+  train_ae_rhemi.slurm
+```
+```bash
+cd <PATH_TO_PROJECT>/3D_Brain_partsLDM
+sbatch -N 12 --ntasks-per-node=1 --gpus-per-node=8 \
+  --export=ALL,PROJECT_ROOT=<PATH_TO_PROJECT>/3D_Brain_partsLDM,NPROC_PER_NODE=8,CONFIG=configs/rhemi_LDM_spacing1p5.json,MASTER_PORT=29600,MAX_RESTARTS=20,MAX_REQUEUE=10 \
+  train_ldm_rhemi.slurm
+```
+
+#### Fusion LDM
+
+```bash
+cd <PATH_TO_PROJECT>/3D_Brain_partsLDM
+sbatch -N 12 --ntasks-per-node=1 --gpus-per-node=8 \
+  --export=ALL,PROJECT_ROOT=<PATH_TO_PROJECT>/3D_Brain_partsLDM,NPROC_PER_NODE=8,CONFIG=configs/whole_brain_aux_taux_spacing1p5_DiffHEMI.json,MASTER_PORT=29640,MAX_RESTARTS=20,MAX_REQUEUE=10 \
+  train_ldm_aux_taux_DiffHEMI_ddp.slurm
+```
+
 
 </details>

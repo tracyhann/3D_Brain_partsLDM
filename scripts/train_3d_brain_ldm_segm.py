@@ -1,27 +1,26 @@
-import os
-import json
-import random
 import argparse
+import json
+import os
+import random
 from datetime import datetime
-from typing import Optional, Dict, Any, Tuple, List
+from typing import Any, Dict, Optional, Tuple
 
-import numpy as np
 import nibabel as nib
+import numpy as np
 import pandas as pd
 import torch
 import torch.multiprocessing as mp
 import torch.nn.functional as F
-from torch.amp import autocast, GradScaler
+from monai import transforms
+from monai.data import DataLoader, Dataset
+from monai.transforms import MapTransform
+from monai.utils import first
+from torch.amp import GradScaler, autocast
 from tqdm import tqdm
 
-from monai import transforms
-from monai.data import Dataset, DataLoader
-from monai.utils import first
-
+from eval_utils import plot_unet_loss
 from generative.networks.nets import AutoencoderKL, DiffusionModelUNet
 from generative.networks.schedulers import DDPMScheduler, DDIMScheduler
-
-from eval_utils import plot_unet_loss
 
 
 # Avoid shared-memory exhaustion in DataLoader workers (e.g., limited /dev/shm)
@@ -40,7 +39,6 @@ def seed_all(seed: int):
     np.random.seed(seed)
     torch.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)
-
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
 
@@ -93,9 +91,15 @@ def _load_ckpt_into_unet(
     print(f"[resume] loaded packaged ckpt: missing={len(missing)} unexpected={len(unexpected)}")
 
     if opt is not None and ckpt.get("optimizer") is not None:
-        opt.load_state_dict(ckpt["optimizer"])
+        try:
+            opt.load_state_dict(ckpt["optimizer"])
+        except ValueError as e:
+            print(f"[resume] optimizer state incompatible, skipping optimizer restore: {e}")
     if scaler is not None and ckpt.get("scaler") is not None:
-        scaler.load_state_dict(ckpt["scaler"])
+        try:
+            scaler.load_state_dict(ckpt["scaler"])
+        except Exception as e:
+            print(f"[resume] scaler state incompatible, skipping scaler restore: {e}")
 
     gs = int(ckpt.get("global_step", 0))
     ep = int(ckpt.get("epoch", 0))
@@ -103,8 +107,129 @@ def _load_ckpt_into_unet(
     return gs, ep, extra
 
 
-def build_transforms(keys: List[str], spacing: Tuple[float, float, float], whole_size: Tuple[int, int, int]):
+def align_binary_mask_to_shape(
+    mask: torch.Tensor,
+    target_shape: Tuple[int, int, int],
+    anchors: Tuple[str, str, str],
+) -> torch.Tensor:
+    """
+    Align a binary mask tensor to target shape by anchor-aware crop/pad.
+    Input: [C,D,H,W] or [D,H,W]
+    Anchors per spatial dim:
+      - "start": keep content at low index, pad/crop on high side
+      - "end": keep content at high index, pad/crop on low side
+      - "center": center align
+    """
+    x = (mask > 0).float()
+    squeezed = False
+    if x.ndim == 3:
+        x = x.unsqueeze(0)
+        squeezed = True
+    if x.ndim != 4:
+        raise ValueError(f"Expected [C,D,H,W] or [D,H,W], got {tuple(mask.shape)}")
+
+    # Crop first (if source is larger than target)
+    for i, tgt in enumerate(target_shape):
+        axis = 1 + i
+        cur = int(x.shape[axis])
+        if cur <= tgt:
+            continue
+        delta = cur - tgt
+        anchor = anchors[i]
+        if anchor == "start":
+            start = 0
+        elif anchor == "end":
+            start = delta
+        else:
+            start = delta // 2
+        end = start + tgt
+        slicer = [slice(None)] * x.ndim
+        slicer[axis] = slice(start, end)
+        x = x[tuple(slicer)]
+
+    # Then pad (if source is smaller than target)
+    pads = []
+    for i in reversed(range(3)):  # W, H, D order for torch.nn.functional.pad
+        axis = 1 + i
+        cur = int(x.shape[axis])
+        tgt = int(target_shape[i])
+        delta = max(0, tgt - cur)
+        anchor = anchors[i]
+        if anchor == "start":
+            before, after = 0, delta
+        elif anchor == "end":
+            before, after = delta, 0
+        else:
+            before = delta // 2
+            after = delta - before
+        pads.extend([before, after])
+
+    if any(pads):
+        x = F.pad(x, pads, mode="constant", value=0.0)
+
+    x = (x > 0.5).float()
+    if squeezed:
+        x = x.squeeze(0)
+    return x
+
+
+class AlignPartMasksToWholed(MapTransform):
+    """
+    Align part masks into whole-image space:
+      - lhemi: pad/crop on the right side (keep left side fixed)
+      - rhemi: pad/crop on the left side (keep right side fixed)
+      - sub: keep bottom/left fixed, pad/crop above/right
+      - whole mask: aligned to whole image shape without explicit directional shift
+    """
+
+    def __init__(
+        self,
+        *,
+        image_key: str,
+        whole_mask_key: str,
+        lhemi_mask_key: str,
+        rhemi_mask_key: str,
+        sub_mask_key: str,
+    ):
+        super().__init__(keys=[image_key, whole_mask_key, lhemi_mask_key, rhemi_mask_key, sub_mask_key])
+        self.image_key = image_key
+        self.whole_mask_key = whole_mask_key
+        self.lhemi_mask_key = lhemi_mask_key
+        self.rhemi_mask_key = rhemi_mask_key
+        self.sub_mask_key = sub_mask_key
+
+    def __call__(self, data):
+        d = dict(data)
+        target_shape = tuple(int(v) for v in d[self.image_key].shape[-3:])
+
+        d[self.whole_mask_key] = align_binary_mask_to_shape(
+            d[self.whole_mask_key], target_shape, anchors=("start", "start", "start")
+        )
+        d[self.lhemi_mask_key] = align_binary_mask_to_shape(
+            d[self.lhemi_mask_key], target_shape, anchors=("start", "start", "start")
+        )
+        d[self.rhemi_mask_key] = align_binary_mask_to_shape(
+            d[self.rhemi_mask_key], target_shape, anchors=("end", "start", "start")
+        )
+        d[self.sub_mask_key] = align_binary_mask_to_shape(
+            d[self.sub_mask_key], target_shape, anchors=("start", "start", "start")
+        )
+        return d
+
+
+def build_transforms(
+    *,
+    image_key: str,
+    whole_mask_key: str,
+    lhemi_mask_key: str,
+    rhemi_mask_key: str,
+    sub_mask_key: str,
+    spacing: Tuple[float, float, float],
+    whole_size: Tuple[int, int, int],
+):
     channel = 0
+    keys = [image_key, whole_mask_key, lhemi_mask_key, rhemi_mask_key, sub_mask_key]
+    mask_keys = [whole_mask_key, lhemi_mask_key, rhemi_mask_key, sub_mask_key]
     return transforms.Compose(
         [
             transforms.LoadImaged(keys=keys),
@@ -112,20 +237,33 @@ def build_transforms(keys: List[str], spacing: Tuple[float, float, float], whole
             transforms.Lambdad(keys=keys, func=lambda x: x[channel, :, :, :]),
             transforms.EnsureChannelFirstd(keys=keys, channel_dim="no_channel"),
             transforms.EnsureTyped(keys=keys),
-            transforms.Spacingd(keys=keys, pixdim=spacing, mode=("bilinear",) * len(keys)),
-            transforms.DivisiblePadd(keys=["whole"], k=32, mode="constant", constant_values=-1.0),
-            transforms.CenterSpatialCropd(keys=["whole"], roi_size=whole_size),
+            transforms.Spacingd(keys=[image_key], pixdim=spacing, mode=("bilinear",)),
+            transforms.Spacingd(keys=mask_keys, pixdim=spacing, mode=("nearest",) * len(mask_keys)),
+            transforms.Lambdad(keys=mask_keys, func=lambda x: (x > 0).float()),
+            AlignPartMasksToWholed(
+                image_key=image_key,
+                whole_mask_key=whole_mask_key,
+                lhemi_mask_key=lhemi_mask_key,
+                rhemi_mask_key=rhemi_mask_key,
+                sub_mask_key=sub_mask_key,
+            ),
+            transforms.DivisiblePadd(keys=[image_key], k=32, mode="constant", constant_values=-1.0),
+            transforms.DivisiblePadd(keys=mask_keys, k=32, mode="constant", constant_values=0.0),
+            transforms.CenterSpatialCropd(keys=keys, roi_size=whole_size),
+            transforms.Lambdad(keys=mask_keys, func=lambda x: (x > 0).float()),
         ]
     )
 
 
 def make_dataloaders_from_csv(
-    csv_path,
-    whole_key,
-    lhemi_key,
-    rhemi_key,
-    sub_key,
-    conditions=("age", "sex", "vol", "group"),
+    *,
+    csv_path: str,
+    image_key: str,
+    whole_mask_key: str,
+    lhemi_mask_key: str,
+    rhemi_mask_key: str,
+    sub_mask_key: str,
+    conditions=("age", "sex", "group"),
     train_transforms=None,
     n_samples=None,
     data_split_json_path="data/patient_splits_image_ids_75_10_15.json",
@@ -144,19 +282,20 @@ def make_dataloaders_from_csv(
         image_ids[image_id] = "test"
 
     df = pd.read_csv(csv_path)
-
     train_data, val_data, test_data = [], [], []
     n_train_added = 0
+
     for _, row in df.iterrows():
         image_id = row["imageID"]
         if image_id not in image_ids:
             continue
 
         sample = {
-            "whole": row[whole_key],
-            "lhemi": row[lhemi_key],
-            "rhemi": row[rhemi_key],
-            "sub": row[sub_key],
+            "image": row[image_key],
+            "whole_brain_mask": row[whole_mask_key],
+            "lhemi_mask": row[lhemi_mask_key],
+            "rhemi_mask": row[rhemi_mask_key],
+            "sub_mask": row[sub_mask_key],
         }
         for c in conditions:
             if c in row:
@@ -174,7 +313,8 @@ def make_dataloaders_from_csv(
             test_data.append(sample)
 
     train_ds = Dataset(data=train_data, transform=train_transforms)
-    print(f"Transformed data shape (whole): {train_ds[0]['whole'].shape}")
+    print(f"Transformed train shape (image): {train_ds[0]['image'].shape}")
+    print(f"Transformed train shape (lhemi_mask): {train_ds[0]['lhemi_mask'].shape}")
     print(f"Number of training samples: {len(train_ds)}")
     train_loader = DataLoader(
         train_ds,
@@ -189,6 +329,7 @@ def make_dataloaders_from_csv(
     val_loader = DataLoader(
         val_ds,
         batch_size=1,
+        shuffle=False,
         num_workers=num_workers,
         pin_memory=True,
     )
@@ -198,74 +339,11 @@ def make_dataloaders_from_csv(
     test_loader = DataLoader(
         test_ds,
         batch_size=1,
+        shuffle=False,
         num_workers=num_workers,
         pin_memory=True,
     )
     return train_loader, val_loader, test_loader
-
-
-def build_coarse_brain_from_parts(
-    whole: torch.Tensor,
-    lhemi: torch.Tensor,
-    rhemi: torch.Tensor,
-    sub: torch.Tensor,
-    bg_value: float = -1.0,
-    valid_thresh: float = -0.995,
-) -> torch.Tensor:
-    """
-    Build coarse brain in whole image space by pasting parts.
-    Overlap voxels are reset to bg_value.
-    """
-    b, _, d, h, w = whole.shape
-    coarse = torch.full_like(whole, fill_value=bg_value)
-    occupied = torch.zeros((b, 1, d, h, w), device=whole.device, dtype=torch.bool)
-
-    def _paste(src: torch.Tensor, x0: int, y0: int, z0: int):
-        nonlocal coarse, occupied
-        _, _, sd, sh, sw = src.shape
-
-        x1 = min(d, x0 + sd)
-        y1 = min(h, y0 + sh)
-        z1 = min(w, z0 + sw)
-        x0c = max(0, x0)
-        y0c = max(0, y0)
-        z0c = max(0, z0)
-        if x0c >= x1 or y0c >= y1 or z0c >= z1:
-            return
-
-        sx0 = x0c - x0
-        sy0 = y0c - y0
-        sz0 = z0c - z0
-        sx1 = sx0 + (x1 - x0c)
-        sy1 = sy0 + (y1 - y0c)
-        sz1 = sz0 + (z1 - z0c)
-
-        srcv = src[:, :, sx0:sx1, sy0:sy1, sz0:sz1]
-        valid = srcv > valid_thresh
-
-        cview = coarse[:, :, x0c:x1, y0c:y1, z0c:z1]
-        oview = occupied[:, :, x0c:x1, y0c:y1, z0c:z1]
-
-        overlap = valid & oview
-        if overlap.any():
-            cview = torch.where(overlap, torch.full_like(cview, bg_value), cview)
-
-        fresh = valid & (~oview)
-        if fresh.any():
-            cview = torch.where(fresh, srcv, cview)
-            oview = oview | fresh
-
-        coarse[:, :, x0c:x1, y0c:y1, z0c:z1] = cview
-        occupied[:, :, x0c:x1, y0c:y1, z0c:z1] = oview
-
-    # left hemi: paste from left
-    _paste(lhemi, x0=0, y0=0, z0=0)
-    # right hemi: paste from right
-    _paste(rhemi, x0=d - rhemi.shape[2], y0=0, z0=0)
-    # sub: paste at origin in y/z as defined by crop logic
-    _paste(sub, x0=0, y0=0, z0=0)
-
-    return coarse
 
 
 def _extract_affine_from_tensor(x: torch.Tensor) -> np.ndarray:
@@ -282,6 +360,32 @@ def _extract_affine_from_tensor(x: torch.Tensor) -> np.ndarray:
     return affine
 
 
+def downsample_binary_mask(mask: torch.Tensor, latent_shape: Tuple[int, int, int]) -> torch.Tensor:
+    if tuple(mask.shape[-3:]) != tuple(latent_shape):
+        mask = F.interpolate(mask.float(), size=latent_shape, mode="nearest")
+    return (mask > 0.5).float()
+
+
+def build_mask_condition_latents(
+    *,
+    batch: Dict[str, torch.Tensor],
+    device,
+    latent_shape: Tuple[int, int, int],
+) -> torch.Tensor:
+    whole_mask = (batch["whole_brain_mask"].to(device) > 0).float()
+    lhemi_mask = (batch["lhemi_mask"].to(device) > 0).float()
+    rhemi_mask = (batch["rhemi_mask"].to(device) > 0).float()
+    sub_mask = (batch["sub_mask"].to(device) > 0).float()
+
+    whole_lat = downsample_binary_mask(whole_mask, latent_shape)
+    lhemi_lat = downsample_binary_mask(lhemi_mask, latent_shape)
+    rhemi_lat = downsample_binary_mask(rhemi_mask, latent_shape)
+    sub_lat = downsample_binary_mask(sub_mask, latent_shape)
+
+    # Required concat order: (lhemi, rhemi, sub, whole)
+    return torch.cat([lhemi_lat, rhemi_lat, sub_lat, whole_lat], dim=1)
+
+
 @torch.no_grad()
 def eval_ldm_loss_only(
     *,
@@ -291,7 +395,6 @@ def eval_ldm_loss_only(
     device,
     scale_factor: float,
     torch_autocast: bool,
-    coarse_valid_thresh: float,
     val_batches: int = 4,
 ):
     unet.eval()
@@ -311,24 +414,21 @@ def eval_ldm_loss_only(
         if i >= val_batches:
             break
 
-        whole = batch["whole"].to(device)
-        lhemi = batch["lhemi"].to(device)
-        rhemi = batch["rhemi"].to(device)
-        sub = batch["sub"].to(device)
-        coarse = build_coarse_brain_from_parts(
-            whole, lhemi, rhemi, sub, valid_thresh=coarse_valid_thresh
+        images = batch["image"].to(device)
+        with torch.no_grad():
+            z = autoencoder.encode_stage_2_inputs(images) * scale_factor
+        cond_lat = build_mask_condition_latents(
+            batch=batch,
+            device=device,
+            latent_shape=tuple(z.shape[-3:]),
         )
 
-        with torch.no_grad():
-            z = autoencoder.encode_stage_2_inputs(whole) * scale_factor
-            z_ctx = autoencoder.encode_stage_2_inputs(coarse) * scale_factor
-
         noise = torch.randn_like(z)
-        t = torch.randint(0, ddpm.num_train_timesteps, (whole.shape[0],), device=device).long()
+        t = torch.randint(0, ddpm.num_train_timesteps, (images.shape[0],), device=device).long()
         z_t = ddpm.add_noise(original_samples=z, noise=noise, timesteps=t)
 
         with autocast(device_type="cuda", enabled=amp_enabled):
-            model_input = torch.cat([z_t, z_ctx], dim=1)
+            model_input = torch.cat([z_t, cond_lat], dim=1)
             noise_pred = unet(model_input, timesteps=t)
             loss = F.mse_loss(noise_pred.float(), noise.float())
 
@@ -347,7 +447,6 @@ def eval_ldm_fast(
     device,
     scale_factor: float,
     torch_autocast: bool,
-    coarse_valid_thresh: float,
     outdir: str,
     global_step: int,
     eval_n: int = 8,
@@ -367,54 +466,49 @@ def eval_ldm_fast(
 
     val_loss = 0.0
     n_seen = 0
-    context_latents = []
+    cond_latents = []
+    latent_ref_shape = None
     ref_affine = np.eye(4, dtype=np.float32)
 
     for i, batch in enumerate(val_loader):
         if i >= max(val_batches, eval_n):
             break
 
-        whole = batch["whole"].to(device)
-        lhemi = batch["lhemi"].to(device)
-        rhemi = batch["rhemi"].to(device)
-        sub = batch["sub"].to(device)
-        coarse = build_coarse_brain_from_parts(
-            whole, lhemi, rhemi, sub, valid_thresh=coarse_valid_thresh
-        )
-
+        images = batch["image"].to(device)
         if i == 0:
-            ref_affine = _extract_affine_from_tensor(batch["whole"])
+            ref_affine = _extract_affine_from_tensor(batch["image"])
 
         with torch.no_grad():
-            z = autoencoder.encode_stage_2_inputs(whole) * scale_factor
-            z_ctx = autoencoder.encode_stage_2_inputs(coarse) * scale_factor
+            z = autoencoder.encode_stage_2_inputs(images) * scale_factor
+        latent_ref_shape = tuple(z.shape[1:])  # [C,D,H,W]
 
-        if len(context_latents) < eval_n:
-            context_latents.append(z_ctx[:1])
+        cond_lat = build_mask_condition_latents(
+            batch=batch,
+            device=device,
+            latent_shape=tuple(z.shape[-3:]),
+        )
+        if len(cond_latents) < eval_n:
+            cond_latents.append(cond_lat[:1])
 
         if i < val_batches:
             noise = torch.randn_like(z)
-            t = torch.randint(0, ddpm.num_train_timesteps, (whole.shape[0],), device=device).long()
+            t = torch.randint(0, ddpm.num_train_timesteps, (images.shape[0],), device=device).long()
             z_t = ddpm.add_noise(original_samples=z, noise=noise, timesteps=t)
-
             with autocast(device_type="cuda", enabled=amp_enabled):
-                model_input = torch.cat([z_t, z_ctx], dim=1)
+                model_input = torch.cat([z_t, cond_lat], dim=1)
                 noise_pred = unet(model_input, timesteps=t)
                 loss = F.mse_loss(noise_pred.float(), noise.float())
-
             val_loss += float(loss.item())
             n_seen += 1
 
-    if len(context_latents) == 0:
+    if len(cond_latents) == 0 or latent_ref_shape is None:
         return {"val_loss": 0.0, "latent_std": 0.0, "self_l2": 0.0}
 
-    # repeat first context if not enough samples
-    while len(context_latents) < eval_n:
-        context_latents.append(context_latents[0].clone())
+    while len(cond_latents) < eval_n:
+        cond_latents.append(cond_latents[0].clone())
+    cond_eval = torch.cat(cond_latents[:eval_n], dim=0)
 
-    z_ctx_eval = torch.cat(context_latents[:eval_n], dim=0)
-    z = torch.randn_like(z_ctx_eval)
-
+    z = torch.randn((eval_n,) + latent_ref_shape, device=device)
     ddim = DDIMScheduler(
         num_train_timesteps=1000,
         schedule="scaled_linear_beta",
@@ -428,20 +522,17 @@ def eval_ldm_fast(
         t_int = int(t.item()) if hasattr(t, "item") else int(t)
         t_batch = torch.full((eval_n,), t_int, device=device, dtype=torch.long)
         with autocast(device_type="cuda", enabled=amp_enabled):
-            model_input = torch.cat([z, z_ctx_eval], dim=1)
+            model_input = torch.cat([z, cond_eval], dim=1)
             eps = unet(model_input, timesteps=t_batch)
         z, _ = ddim.step(eps, t_int, z)
 
     with torch.no_grad():
         x_gen = autoencoder.decode_stage_2_outputs(z / scale_factor)
-
-    with torch.no_grad():
         z_back = autoencoder.encode_stage_2_inputs(x_gen) * scale_factor
     latent_std = float(z_back.std().item())
 
     x_flat = x_gen.float().view(eval_n, -1)
     x_flat = (x_flat - x_flat.mean(dim=1, keepdim=True)) / (x_flat.std(dim=1, keepdim=True) + 1e-6)
-
     dsum = 0.0
     cnt = 0
     for i in range(eval_n):
@@ -468,12 +559,11 @@ def eval_ldm_fast(
         os.path.join(step_dir, "eval_snapshot.pt"),
     )
 
-    metrics = {
+    return {
         "val_loss": val_loss / max(1, n_seen),
         "latent_std": latent_std,
         "self_l2": self_l2,
     }
-    return metrics
 
 
 def train_ldm_steps(
@@ -486,7 +576,6 @@ def train_ldm_steps(
     lr: float = 1e-4,
     scale_factor: Optional[float] = None,
     torch_autocast: bool = True,
-    coarse_valid_thresh: float = -0.995,
     device=torch.device("cuda" if torch.cuda.is_available() else "cpu"),
     outdir: str = "ckpts",
     ckpt_every: int = 10_000,
@@ -510,15 +599,17 @@ def train_ldm_steps(
     for p in autoencoder.parameters():
         p.requires_grad = False
 
+    amp_enabled = bool(torch_autocast and device.type == "cuda")
+
     if scale_factor is None:
-        with torch.no_grad(), torch.autocast("cuda", enabled=torch_autocast):
+        with torch.no_grad(), torch.autocast("cuda", enabled=amp_enabled):
             check_data = first(train_loader)
-            z = autoencoder.encode_stage_2_inputs(check_data["whole"].to(device))
+            z = autoencoder.encode_stage_2_inputs(check_data["image"].to(device))
         scale_factor = float(1.0 / torch.std(z).item())
-        print(f"[LDM] scale_factor set to {scale_factor}")
+        print(f"[LDM-segm] scale_factor set to {scale_factor}")
 
     optimizer = torch.optim.AdamW(unet.parameters(), lr=lr, weight_decay=1e-2)
-    scaler = GradScaler("cuda", enabled=bool(torch_autocast and device.type == "cuda"))
+    scaler = GradScaler("cuda", enabled=amp_enabled)
 
     global_step = 0
     start_epoch = 0
@@ -544,6 +635,10 @@ def train_ldm_steps(
             history["epoch_loss_curve"] = []
         print(f"[resume] global_step={global_step}, start_epoch~={start_epoch}, scale_factor={scale_factor}")
 
+    if global_step >= max_steps:
+        print(f"[resume] global_step ({global_step}) >= max_steps ({max_steps}), nothing to train.")
+        return
+
     unet.train()
     os.makedirs(outdir, exist_ok=True)
 
@@ -554,7 +649,7 @@ def train_ldm_steps(
         raw = history.get("loss_curve", [])
         epoch_curve = []
         for i in range(0, len(raw), steps_per_epoch):
-            chunk = raw[i: i + steps_per_epoch]
+            chunk = raw[i : i + steps_per_epoch]
             if chunk:
                 epoch_curve.append(float(sum(chunk) / len(chunk)))
         history["epoch_loss_curve"] = epoch_curve
@@ -570,26 +665,23 @@ def train_ldm_steps(
             data_iter = iter(train_loader)
             batch = next(data_iter)
 
-        whole = batch["whole"].to(device)
-        lhemi = batch["lhemi"].to(device)
-        rhemi = batch["rhemi"].to(device)
-        sub = batch["sub"].to(device)
-        coarse = build_coarse_brain_from_parts(
-            whole, lhemi, rhemi, sub, valid_thresh=coarse_valid_thresh
-        )
-
+        images = batch["image"].to(device)
         optimizer.zero_grad(set_to_none=True)
 
         with torch.no_grad():
-            z = autoencoder.encode_stage_2_inputs(whole) * scale_factor
-            z_ctx = autoencoder.encode_stage_2_inputs(coarse) * scale_factor
+            z = autoencoder.encode_stage_2_inputs(images) * scale_factor
+            cond_lat = build_mask_condition_latents(
+                batch=batch,
+                device=device,
+                latent_shape=tuple(z.shape[-3:]),
+            )
 
         noise = torch.randn_like(z)
-        timesteps = torch.randint(0, scheduler.num_train_timesteps, (whole.shape[0],), device=device).long()
+        timesteps = torch.randint(0, scheduler.num_train_timesteps, (images.shape[0],), device=device).long()
         z_t = scheduler.add_noise(original_samples=z, noise=noise, timesteps=timesteps)
 
-        with autocast(device_type="cuda", enabled=torch_autocast and device.type == "cuda"):
-            model_input = torch.cat([z_t, z_ctx], dim=1)
+        with autocast(device_type="cuda", enabled=amp_enabled):
+            model_input = torch.cat([z_t, cond_lat], dim=1)
             noise_pred = unet(model_input, timesteps=timesteps)
             loss = F.mse_loss(noise_pred.float(), noise.float())
 
@@ -649,7 +741,6 @@ def train_ldm_steps(
                 device=device,
                 scale_factor=scale_factor,
                 torch_autocast=torch_autocast,
-                coarse_valid_thresh=coarse_valid_thresh,
                 outdir=outdir,
                 global_step=global_step,
                 eval_n=eval_n,
@@ -666,7 +757,6 @@ def train_ldm_steps(
                 device=device,
                 scale_factor=scale_factor,
                 torch_autocast=torch_autocast,
-                coarse_valid_thresh=coarse_valid_thresh,
                 val_batches=simple_eval_val_batches,
             )
             history["simple_eval"].append({"step": global_step, **metrics})
@@ -697,16 +787,17 @@ def main():
     pre_args, _ = pre_ap.parse_known_args()
 
     ap = argparse.ArgumentParser(
-        description="Train MONAI 3D LDM with coarse-brain latent concat conditioning.",
+        description="Train MONAI 3D LDM with segmentation-mask latent concat conditioning.",
         parents=[pre_ap],
     )
     ap.add_argument("--csv", default="data/processed_parts/whole_brain+3parts+masks_0206.csv")
     ap.add_argument("--data_split_json_path", default="data/patient_splits_image_ids_75_10_15.json")
 
-    ap.add_argument("--whole_key", default="whole_brain")
-    ap.add_argument("--lhemi_key", default="lhemi")
-    ap.add_argument("--rhemi_key", default="rhemi")
-    ap.add_argument("--sub_key", default="sub")
+    ap.add_argument("--image_key", default="whole_brain")
+    ap.add_argument("--whole_mask_key", default="whole_brain_mask")
+    ap.add_argument("--lhemi_mask_key", default="lhemi_mask")
+    ap.add_argument("--rhemi_mask_key", default="rhemi_mask")
+    ap.add_argument("--sub_mask_key", default="sub_mask")
 
     ap.add_argument("--spacing", default="1,1,1", help="Target spacing mm (e.g., 1,1,1)")
     ap.add_argument("--size", default="160,224,160", help="Whole-brain crop D,H,W")
@@ -715,7 +806,6 @@ def main():
     ap.add_argument("--torch_autocast", default=True)
     ap.add_argument("--n_samples", default="ALL")
     ap.add_argument("--train_val_split", type=float, default=0.1)
-    ap.add_argument("--coarse_valid_thresh", type=float, default=-0.995)
     # compatibility with train_3d_brain_ldm_steps.py configs (unused in this script)
     ap.add_argument("--stage", choices=["ae", "ldm", "both"], default="ldm")
 
@@ -779,11 +869,22 @@ def main():
     with open(os.path.join(args.outdir, "args.json"), "w", encoding="utf-8") as f:
         json.dump(cfg, f, indent=2, sort_keys=True)
 
+    if args.stage == "ae":
+        print("Stage 'ae' is not implemented in this script. Use a pretrained AE and stage='ldm'.")
+        return
+
     spacing = tuple(float(x) for x in args.spacing.split(","))
     size = tuple(int(x) for x in args.size.split(","))
 
-    keys = ["whole", "lhemi", "rhemi", "sub"]
-    train_transforms = build_transforms(keys=keys, spacing=spacing, whole_size=size)
+    train_transforms = build_transforms(
+        image_key="image",
+        whole_mask_key="whole_brain_mask",
+        lhemi_mask_key="lhemi_mask",
+        rhemi_mask_key="rhemi_mask",
+        sub_mask_key="sub_mask",
+        spacing=spacing,
+        whole_size=size,
+    )
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"\nUsing {device}\n")
@@ -797,11 +898,12 @@ def main():
 
     train_loader, val_loader, _ = make_dataloaders_from_csv(
         csv_path=args.csv,
-        whole_key=args.whole_key,
-        lhemi_key=args.lhemi_key,
-        rhemi_key=args.rhemi_key,
-        sub_key=args.sub_key,
-        conditions=("age", "sex", "vol", "group"),
+        image_key=args.image_key,
+        whole_mask_key=args.whole_mask_key,
+        lhemi_mask_key=args.lhemi_mask_key,
+        rhemi_mask_key=args.rhemi_mask_key,
+        sub_mask_key=args.sub_mask_key,
+        conditions=("age", "sex", "group"),
         train_transforms=train_transforms,
         n_samples=n_samples,
         data_split_json_path=args.data_split_json_path,
@@ -830,9 +932,10 @@ def main():
     ldm_num_channels = tuple(int(x) for x in args.ldm_num_channels.split(","))
     ldm_num_head_channels = tuple(int(x) for x in args.ldm_num_head_channels.split(","))
 
+    # Noisy latent + 4 binary mask latent channels.
     unet = DiffusionModelUNet(
         spatial_dims=3,
-        in_channels=ae_latent_ch * 2,
+        in_channels=ae_latent_ch + 4,
         out_channels=ae_latent_ch,
         num_res_blocks=2,
         num_channels=ldm_num_channels,
@@ -864,7 +967,6 @@ def main():
         lr=args.ldm_lr,
         scale_factor=scale_factor,
         torch_autocast=torch_autocast,
-        coarse_valid_thresh=float(args.coarse_valid_thresh),
         device=device,
         outdir=args.outdir,
         ckpt_every=args.ckpt_every,
