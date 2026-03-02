@@ -44,6 +44,21 @@ https://github.com/lulinliu/MineLongTail/blob/main/monaifull.yml
 
 - Download the entire `/data` dir from huggingface (about 37G):
 
+```bash
+cd <PROJECT_PATH>/3D_brain_partLDM
+```
+
+```bash
+hf auth login
+```
+paste `$HF_TOKEN`
+
+```bash
+hf download tracyhan816/3D_brain_partLDM_data --repo-type dataset 
+```
+
+- Dataset info
+
 <pre>
 hf datasets info tracyhan816/3D_brain_partLDM_data
 {
@@ -54,8 +69,13 @@ hf datasets info tracyhan816/3D_brain_partLDM_data
 }
 </pre>
 
-- You may use the `data.tar.gz` to replace the `/data` dir if conflicts arise. 
-- Place `/data` dir under project dir: `./3D_Brain_partsLDM/data`.
+- Inside project dir, release `data.tar.gz`
+
+```bash
+mv data data_ARCHIVE_$(date +%Y%m%d_%H%M%S) 2>/dev/null || true
+mkdir -p data
+tar -xzf data.tar.gz -C data --strip-components=1
+```
 
 </details>
 
@@ -65,9 +85,19 @@ hf datasets info tracyhan816/3D_brain_partLDM_data
 <details>
 <summary><strong>Details</strong></summary>
 
+- Inside project dir:
 - Download the entire `/ckpts` dir from huggingface (about 10G): https://huggingface.co/tracyhan816/3D_Brain_partsLDM
-- Place `/ckpts` dir under project dir: `./3D_Brain_partsLDM/ckpts`.
-- You may use the huggingface `/ckpts` to overwrite the existing `/ckpts` dir in the project dir if conflicts arise.
+- This becomes `/ckpts` dir under project dir: `./3D_Brain_partsLDM/ckpts`.
+
+```bash
+mv ckpts ckpts_ARCHIVE_$(date +%Y%m%d_%H%M%S) 2>/dev/null || true
+
+# download the ckpts folder from the model repo into ./ckpts
+hf download tracyhan816/3D_Brain_partsLDM \
+  --repo-type model \
+  --include "ckpts/**" \
+  --local-dir . 
+```
 
 </details>
 
