@@ -84,16 +84,8 @@ hf datasets info tracyhan816/3D_brain_partLDM_data
 ├── environment.yml
 ├── README.md
 ├── scripts
-├── train_ldm_aux_taux_addition_ddp.sh
-├── train_ldm_aux_taux_addition_ddp.slurm
-├── train_ldm_aux_taux_ddp.sh
-├── train_ldm_aux_taux_ddp.slurm
-├── train_ldm_hemi.sh
-├── train_ldm_hemi.slurm
-├── train_ldm_sub.sh
-├── train_ldm_sub.slurm
-├── train_ldm_wholebrain.sh
-└── train_ldm_wholebrain.slurm
+├── train_*.sh
+└── train_*.slurm
 </pre>
 
 #### When running the following cmds, replace `<PATH_TO_PROJECT>` 
