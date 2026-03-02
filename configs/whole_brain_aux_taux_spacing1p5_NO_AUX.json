@@ -57,7 +57,7 @@
   "ldm_lr": 0.0001,
   "lambda_aux": 0.0,
   "lambda_seam": 0.0,
-  "aux_every": 1,
+  "aux_every": 20001,
   "taux_min": 100,
   "taux_max": 300,
   "part_taux_max": 200,
