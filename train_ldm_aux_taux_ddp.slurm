@@ -21,6 +21,9 @@ if [[ ! -f "${LAUNCH_SCRIPT}" ]]; then
 fi
 
 export CONFIG="${CONFIG:-configs/whole_brain_aux_taux_spacing1p5.json}"
+export TRAIN_SCRIPT="${TRAIN_SCRIPT:-scripts/train_3d_brain_ldm_aux_taux_ddp.py}"
+export NPROC_PER_NODE="${NPROC_PER_NODE:-8}"
+export MASTER_PORT="${MASTER_PORT:-29600}"
 export MAX_RESTARTS="${MAX_RESTARTS:-20}"
 export MAX_REQUEUE="${MAX_REQUEUE:-10}"
 

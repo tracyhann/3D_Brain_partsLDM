@@ -9,6 +9,7 @@ TRAIN_SCRIPT="${TRAIN_SCRIPT:-scripts/train_3d_brain_ldm_aux_taux_ddp.py}"
 MASTER_PORT="${MASTER_PORT:-29500}"
 MAX_RESTARTS="${MAX_RESTARTS:-20}"
 RESTART_SLEEP_SEC="${RESTART_SLEEP_SEC:-15}"
+TORCHRUN_ARGS="${TORCHRUN_ARGS:-}"
 
 if [[ ! -f "${CONFIG}" ]]; then
   echo "[launch] config not found: ${CONFIG}" >&2
@@ -86,6 +87,7 @@ while (( attempt <= MAX_RESTARTS )); do
     --node_rank="${NODE_RANK}" \
     --master_addr="${MASTER_ADDR}" \
     --master_port="${MASTER_PORT}" \
+    ${TORCHRUN_ARGS} \
     "${TRAIN_SCRIPT}" \
     --config "${CONFIG}" \
     --outdir "${OUTDIR_BASE}" \

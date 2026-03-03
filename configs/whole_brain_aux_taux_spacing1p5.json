@@ -8,9 +8,13 @@
   "hemi_size": "64,128,128",
   "sub_size": "128,96,64",
 
-  "batch": 1,
-  "workers": 0,
+  "batch": 4,
+  "workers": 32,
+  "dataloader_persistent_workers": true,
+  "dataloader_prefetch_factor": 4,
   "torch_autocast": true,
+  "deterministic": false,
+  "allow_tf32": true,
   "n_samples": "ALL",
 
   "template_dir": ".",
@@ -55,9 +59,9 @@
 
   "max_steps": 20000,
   "ldm_lr": 0.0001,
-  "lambda_aux": 0.5,
+  "lambda_aux": 1.0,
   "lambda_seam": 0.1,
-  "aux_every": 1,
+  "aux_every": 4,
   "taux_min": 100,
   "taux_max": 300,
   "part_taux_max": 200,

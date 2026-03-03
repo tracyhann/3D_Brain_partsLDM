@@ -33,14 +33,17 @@ def str2bool(v: Any) -> bool:
     return str(v).strip().lower() in ("1", "true", "t", "yes", "y")
 
 
-def seed_all(seed: int):
+def seed_all(seed: int, deterministic: bool = True, allow_tf32: bool = True):
     os.environ["PYTHONHASHSEED"] = str(seed)
     random.seed(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)
-    torch.backends.cudnn.deterministic = True
-    torch.backends.cudnn.benchmark = False
+    torch.backends.cudnn.deterministic = bool(deterministic)
+    torch.backends.cudnn.benchmark = not bool(deterministic)
+    if torch.cuda.is_available():
+        torch.backends.cuda.matmul.allow_tf32 = bool(allow_tf32)
+        torch.backends.cudnn.allow_tf32 = bool(allow_tf32)
 
 
 def _parse_int_tuple(v: str) -> Tuple[int, ...]:
@@ -58,6 +61,12 @@ def _resolve_path(template_dir: str, p: str) -> str:
     if os.path.exists(p):
         return p
     return os.path.join(template_dir, p)
+
+
+def _scale_step_value(value: int, ratio: float) -> int:
+    if int(value) <= 0:
+        return int(value)
+    return max(1, int(round(float(value) * float(ratio))))
 
 
 # -----------------------------------------------------------------------------
@@ -195,6 +204,8 @@ def make_dataloaders_from_csv(
     data_split_json_path="data/patient_splits_image_ids_75_10_15.json",
     batch_size=1,
     num_workers=8,
+    persistent_workers=True,
+    prefetch_factor=2,
 ):
     with open(data_split_json_path, "r", encoding="utf-8") as f:
         splits = json.load(f)
@@ -233,33 +244,45 @@ def make_dataloaders_from_csv(
     train_ds = Dataset(data=train_data, transform=train_transforms)
     print(f"Transformed train shape (image): {train_ds[0]['image'].shape}")
     print(f"Number of training samples: {len(train_ds)}")
-    train_loader = DataLoader(
-        train_ds,
-        batch_size=batch_size,
-        shuffle=True,
-        num_workers=num_workers,
-        pin_memory=True,
-    )
+    train_loader_kwargs = {
+        "batch_size": batch_size,
+        "shuffle": True,
+        "num_workers": num_workers,
+        "pin_memory": True,
+    }
+    if int(num_workers) > 0:
+        train_loader_kwargs["persistent_workers"] = bool(persistent_workers)
+        if int(prefetch_factor) > 0:
+            train_loader_kwargs["prefetch_factor"] = int(prefetch_factor)
+    train_loader = DataLoader(train_ds, **train_loader_kwargs)
 
     val_ds = Dataset(data=val_data, transform=train_transforms)
     print(f"Number of validation samples: {len(val_ds)}")
-    val_loader = DataLoader(
-        val_ds,
-        batch_size=1,
-        shuffle=False,
-        num_workers=num_workers,
-        pin_memory=True,
-    )
+    val_loader_kwargs = {
+        "batch_size": 1,
+        "shuffle": False,
+        "num_workers": num_workers,
+        "pin_memory": True,
+    }
+    if int(num_workers) > 0:
+        val_loader_kwargs["persistent_workers"] = bool(persistent_workers)
+        if int(prefetch_factor) > 0:
+            val_loader_kwargs["prefetch_factor"] = int(prefetch_factor)
+    val_loader = DataLoader(val_ds, **val_loader_kwargs)
 
     test_ds = Dataset(data=test_data, transform=train_transforms)
     print(f"Number of test samples: {len(test_ds)}")
-    test_loader = DataLoader(
-        test_ds,
-        batch_size=1,
-        shuffle=False,
-        num_workers=num_workers,
-        pin_memory=True,
-    )
+    test_loader_kwargs = {
+        "batch_size": 1,
+        "shuffle": False,
+        "num_workers": num_workers,
+        "pin_memory": True,
+    }
+    if int(num_workers) > 0:
+        test_loader_kwargs["persistent_workers"] = bool(persistent_workers)
+        if int(prefetch_factor) > 0:
+            test_loader_kwargs["prefetch_factor"] = int(prefetch_factor)
+    test_loader = DataLoader(test_ds, **test_loader_kwargs)
     return train_loader, val_loader, test_loader
 
 
@@ -684,7 +707,7 @@ class HemisphereConditioner(nn.Module):
         return ctx.unsqueeze(1)  # [B,1,d_model]
 
 
-@torch.no_grad()
+@torch.inference_mode()
 def _run_part_expert(
     *,
     x_part_masked: torch.Tensor,
@@ -712,7 +735,7 @@ def _run_part_expert(
 # -----------------------------------------------------------------------------
 # TAux branch: whole scaffold -> part experts -> x_coarse -> latent replace
 # -----------------------------------------------------------------------------
-@torch.no_grad()
+@torch.inference_mode()
 def build_expert_composite_branch(
     *,
     whole_unet: DiffusionModelUNet,
@@ -943,7 +966,7 @@ def eval_ldm_loss_only(
     for i, batch in enumerate(val_loader):
         if i >= val_batches:
             break
-        images = batch["image"].to(device)
+        images = batch["image"].to(device, non_blocking=True)
         z = whole_ae.encode_stage_2_inputs(images) * whole_scale_factor
         noise = torch.randn_like(z)
         t = torch.randint(0, ddpm.num_train_timesteps, (images.shape[0],), device=device).long()
@@ -1010,7 +1033,7 @@ def eval_taux_fast(
     for i, batch in enumerate(val_loader):
         if i >= val_batches:
             break
-        images = batch["image"].to(device)
+        images = batch["image"].to(device, non_blocking=True)
         z = whole_ae.encode_stage_2_inputs(images) * whole_scale_factor
         noise = torch.randn_like(z)
         t = torch.randint(0, ddpm.num_train_timesteps, (images.shape[0],), device=device).long()
@@ -1027,7 +1050,7 @@ def eval_taux_fast(
     except Exception:
         ref_batch = first(train_loader)
     ref_affine = _extract_affine_from_tensor(ref_batch["image"])
-    ref_img = ref_batch["image"].to(device)[:1]
+    ref_img = ref_batch["image"].to(device, non_blocking=True)[:1]
     z_ref0 = whole_ae.encode_stage_2_inputs(ref_img) * whole_scale_factor
 
     step_dir = os.path.join(outdir, "eval_samples", f"step{global_step:09d}")
@@ -1181,12 +1204,12 @@ def train_ldm_aux_taux(
     # Scale factors.
     if whole_scale_factor is None:
         with torch.no_grad(), autocast(device_type="cuda", enabled=amp_enabled):
-            z = whole_ae.encode_stage_2_inputs(first(train_loader)["image"].to(device))
+            z = whole_ae.encode_stage_2_inputs(first(train_loader)["image"].to(device, non_blocking=True))
         whole_scale_factor = float(1.0 / max(torch.std(z).item(), 1e-8))
         print(f"[scale] whole_scale_factor auto={whole_scale_factor:.6f}")
 
     if hemi_scale_factor is None or sub_scale_factor is None:
-        ref_img = first(train_loader)["image"].to(device)[:1]
+        ref_img = first(train_loader)["image"].to(device, non_blocking=True)[:1]
         xL_whole_masked = _apply_binary_mask_bg(ref_img, mask_ctx["mL"], bg_value)
         xR_whole_masked = _apply_binary_mask_bg(ref_img, mask_ctx["mR"], bg_value)
         xS_whole_masked = _apply_binary_mask_bg(ref_img, mask_ctx["mS"], bg_value)
@@ -1275,7 +1298,7 @@ def train_ldm_aux_taux(
             data_iter = iter(train_loader)
             batch = next(data_iter)
 
-        images = batch["image"].to(device)
+        images = batch["image"].to(device, non_blocking=True)
         optimizer.zero_grad(set_to_none=True)
 
         with torch.no_grad(), autocast(device_type="cuda", enabled=amp_enabled):
@@ -1541,7 +1564,11 @@ def main():
     ap.add_argument("--sub_size", default="128,96,64")
     ap.add_argument("--batch", type=int, default=1)
     ap.add_argument("--workers", type=int, default=0)
+    ap.add_argument("--dataloader_persistent_workers", default=True)
+    ap.add_argument("--dataloader_prefetch_factor", type=int, default=2)
     ap.add_argument("--torch_autocast", default=True)
+    ap.add_argument("--deterministic", default=True)
+    ap.add_argument("--allow_tf32", default=True)
     ap.add_argument("--n_samples", default="ALL")
 
     # Template masks
@@ -1596,6 +1623,17 @@ def main():
 
     # Aux-tAux training controls
     ap.add_argument("--max_steps", type=int, default=120_000)
+    ap.add_argument(
+        "--auto_scale_budget_by_batch",
+        default=True,
+        help="If true, auto-scale step-based budget by budget_ref_batch / batch (default: true).",
+    )
+    ap.add_argument(
+        "--budget_ref_batch",
+        type=int,
+        default=1,
+        help="Reference batch size used to define original step budget.",
+    )
     ap.add_argument("--ldm_lr", type=float, default=1e-4)
     ap.add_argument("--lambda_aux", type=float, default=1.0)
     ap.add_argument(
@@ -1657,6 +1695,26 @@ def main():
         ap.set_defaults(**cfg_defaults)
 
     args = ap.parse_args()
+    if int(args.batch) < 1:
+        ap.error("Require batch >= 1.")
+
+    if str2bool(args.auto_scale_budget_by_batch):
+        if int(args.budget_ref_batch) < 1:
+            ap.error("Require budget_ref_batch >= 1 when auto_scale_budget_by_batch is enabled.")
+        budget_ratio = float(int(args.budget_ref_batch)) / float(int(args.batch))
+        step_keys = ["max_steps", "ckpt_every", "last_every", "eval_every", "simple_eval_every"]
+        before = {k: int(getattr(args, k)) for k in step_keys}
+        for key in step_keys:
+            setattr(args, key, _scale_step_value(int(getattr(args, key)), budget_ratio))
+        after = {k: int(getattr(args, k)) for k in step_keys}
+        print(
+            "[budget] auto_scale_budget_by_batch enabled: "
+            f"ref_batch={int(args.budget_ref_batch)} batch={int(args.batch)} ratio={budget_ratio:.6f}"
+        )
+        print(
+            "[budget] scaled step params: "
+            + ", ".join([f"{k}:{before[k]}->{after[k]}" for k in step_keys])
+        )
 
     required_ckpts = [
         ("whole_ae_ckpt", args.whole_ae_ckpt),
@@ -1706,7 +1764,14 @@ def main():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
 
-    seed_all(1017)
+    if int(args.dataloader_prefetch_factor) < 0:
+        ap.error("Require dataloader_prefetch_factor >= 0.")
+
+    seed_all(
+        1017,
+        deterministic=str2bool(args.deterministic),
+        allow_tf32=str2bool(args.allow_tf32),
+    )
 
     n_samples = None if str(args.n_samples).upper() == "ALL" else int(args.n_samples)
     train_transforms = build_image_transforms(spacing=spacing, whole_size=size)
@@ -1719,6 +1784,8 @@ def main():
         data_split_json_path=args.data_split_json_path,
         batch_size=args.batch,
         num_workers=args.workers,
+        persistent_workers=str2bool(args.dataloader_persistent_workers),
+        prefetch_factor=int(args.dataloader_prefetch_factor),
     )
 
     template_dir = args.template_dir
