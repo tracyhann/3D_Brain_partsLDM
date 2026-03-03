@@ -64,7 +64,11 @@ def setup_ddp() -> Tuple[int, int, int]:
     torch.cuda.set_device(local_rank)
     if not dist.is_initialized():
         try:
-            dist.init_process_group(backend="nccl", init_method="env://", device_id=local_rank)
+            dist.init_process_group(
+                backend="nccl",
+                init_method="env://",
+                device_id=torch.device(f"cuda:{local_rank}"),
+            )
         except TypeError:
             dist.init_process_group(backend="nccl", init_method="env://")
     rank = dist.get_rank()
