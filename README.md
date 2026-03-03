@@ -150,7 +150,7 @@ sbatch -N 12 --ntasks-per-node=1 --gpus-per-node=8 \
 <details>
 <summary><strong>Details</strong></summary>
 
-#### *Estimated* runtime: ~100 GPU hours on H100
+#### *Estimated* runtime: ~80 GPU hours on H100
 
 - The actual runtime of this experiment has not been tested.
 
@@ -198,7 +198,7 @@ sbatch -N 12 --ntasks-per-node=1 --gpus-per-node=8 \
 <details>
 <summary><strong>Details</strong></summary>
 
-#### *Estimated* runtime: ~100 + 160 GPU hours on H100 (2 steps)
+#### *Estimated* runtime: ~50 + 160 GPU hours on H100 (2 steps)
 
 - The actual runtime of this experiment has not been tested.
 - The slurm job below will run 2 steps consecutively.
@@ -254,7 +254,7 @@ sbatch -N 12 --ntasks-per-node=1 --gpus-per-node=8 \
 <details>
 <summary><strong>Details</strong></summary>
 
-#### *Estimated* runtime: ~100 * 2 + 160 GPU hours on H100
+#### *Estimated* runtime: ~40 * 2 + 160 GPU hours on H100
 
 - The actual runtime of this experiment has not been tested.
 - Each hemi model takes < 100 hrs run time, followed by the fusion model.
