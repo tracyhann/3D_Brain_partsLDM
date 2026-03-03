@@ -11,3 +11,5 @@ inference_config_native160.json
 config_160_192_160.json
 
 morphldm_128/ARCHIVE/
+
+morphldm_128/example_spacing1p5_resume500/autoencoder/
