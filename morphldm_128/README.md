@@ -7,6 +7,11 @@ MorphLDM is a 3D brain MRI generation method based on state-of-the-art latent di
 - MorphLDM code builds directly on [MONAI](https://github.com/Project-MONAI/MONAI/tree/dev) and [GenerativeModels](https://github.com/Project-MONAI/GenerativeModels) repositories.
 Make sure they are installed and included in your PYTHONPATH.
 
+## Download ckpt:
+https://huggingface.co/tracyhan816/morphldm_128_ckpts/tree/main
+
+- Place it under project dir: `3D_Brain_partsLDM/morphldm_128/`
+
 ## Runbook
 Run all commands from:
 `3D_Brain_partsLDM/morphldm_128`
