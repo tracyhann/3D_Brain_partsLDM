@@ -1,0 +1,21 @@
+{
+  "diffusion_ckpt": "./example_spacing1p5/diffuion/diffusion_unet_120000.pt",
+  "autoencoder_ckpt": "./example_spacing1p5/autoencoder/autoencoder_500.pt",
+  "output_dir": "./example_spacing1p5/diffuion/inference_test291",
+  "condition_source": "test_split",
+  "condition_metadata_path": "../data/MPRAGE-all-1213_1_07_2026.json",
+  "condition_age_transform": "divide_by_100",
+  "num_samples": 291,
+  "num_inference_steps": 1000,
+  "sample_batch_size": 1,
+  "max_empty_retries": 8,
+  "empty_std_threshold": 1e-6,
+  "age": 0.75,
+  "sex": 0.0,
+  "scale_factor": null,
+  "skip_data_calibration": false,
+  "seed": 42,
+  "device": "cuda:0",
+  "verbose": true,
+  "use_amp": false
+}

@@ -1,0 +1,13 @@
+wandb/*
+*/__pycache__/*
+wandb/
+**/__pycache__/
+example_spacing1p5/diffuion/
+example_spacing1p5/autoencoder/
+example_native160/
+example/
+config_native160.json
+inference_config_native160.json
+config_160_192_160.json
+
+morphldm_128/ARCHIVE/
