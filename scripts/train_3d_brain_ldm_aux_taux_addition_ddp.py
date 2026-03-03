@@ -734,6 +734,11 @@ def main():
     ap.add_argument("--eval_n", type=int, default=2)
     ap.add_argument("--eval_val_batches", type=int, default=8)
     ap.add_argument("--simple_eval_val_batches", type=int, default=4)
+    ap.add_argument(
+        "--ddp_find_unused_parameters",
+        default=True,
+        help="Enable DDP unused-parameter detection for conditional/sparse-grad branches.",
+    )
 
     ap.add_argument("--outdir", default="ckpts/UNET")
     ap.add_argument("--out_prefix", default="whole_brain_aux_taux_add_UNET")
@@ -977,11 +982,15 @@ def main():
         if sub_sf is None:
             sub_sf = base._read_scale_factor_from_ckpt(args.sub_unet_ckpt, device)
 
+        ddp_find_unused = parse_bool(args.ddp_find_unused_parameters)
+        if rank == 0:
+            print(f"DDP find_unused_parameters={ddp_find_unused}")
+
         ddp_whole_unet = DDP(
             whole_unet,
             device_ids=[local_rank],
             output_device=local_rank,
-            find_unused_parameters=False,
+            find_unused_parameters=ddp_find_unused,
         )
 
         train_ldm_aux_taux_ddp(
