@@ -12,7 +12,7 @@
   "ae_latent_ch": 8,
   "ae_num_channels": "64,128,256",
   "ae_attention_levels": "0,0,0",
-  "ae_ckpt": "ckpts/AE/whole_brain_AE_0214_second/AE_best.pt",
+  "ae_ckpt": "ckpts/AE/whole_brain_AE_spacing1p5/AE_best.pt",
   "max_steps": 120000,
   "ckpt_every": 10000,
   "last_every": 1000,
