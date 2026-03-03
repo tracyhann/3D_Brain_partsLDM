@@ -4,3 +4,9 @@ ckpts/
 data/processed_parts/
 
 morphldm_128/ARCHIVE/
+
+**/*.pt
+**/*.pth
+**/*.ckpt
+**/*.safetensors
+morphldm_128/**/autoencoder/
