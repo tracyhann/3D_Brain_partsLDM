@@ -4,8 +4,8 @@ set -euo pipefail
 PROJECT_ROOT="${PROJECT_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}"
 cd "${PROJECT_ROOT}"
 
-CONFIG="${CONFIG:-${CONFIG_PATH:-configs/lhemi_AE_spacing1p5.json}}"
-TRAIN_SCRIPT="${TRAIN_SCRIPT:-scripts/train_3d_VAE_ddp.py}"
+CONFIG="${CONFIG:-${CONFIG_PATH:-configs/lhemi_LDM_spacing1p5.json}}"
+TRAIN_SCRIPT="${TRAIN_SCRIPT:-scripts/train_3d_brain_ldm_steps_ddp.py}"
 MASTER_PORT="${MASTER_PORT:-29500}"
 MAX_RESTARTS="${MAX_RESTARTS:-20}"
 RESTART_SLEEP_SEC="${RESTART_SLEEP_SEC:-15}"
@@ -42,8 +42,8 @@ CFG_OUTDIR="$(python -c 'import json,sys; d=json.load(open(sys.argv[1], "r", enc
 CFG_PREFIX="$(python -c 'import json,sys; d=json.load(open(sys.argv[1], "r", encoding="utf-8")); print(d.get("out_prefix",""))' "${CONFIG}" 2>/dev/null || true)"
 CFG_POSTFIX="$(python -c 'import json,sys; d=json.load(open(sys.argv[1], "r", encoding="utf-8")); print(d.get("out_postfix",""))' "${CONFIG}" 2>/dev/null || true)"
 
-OUTDIR_BASE="${OUTDIR_BASE:-${CFG_OUTDIR:-ckpts/AE}}"
-OUT_PREFIX="${OUT_PREFIX:-${CFG_PREFIX:-lhemi_AE}}"
+OUTDIR_BASE="${OUTDIR_BASE:-${CFG_OUTDIR:-ckpts/UNET}}"
+OUT_PREFIX="${OUT_PREFIX:-${CFG_PREFIX:-lhemi_UNET}}"
 OUT_POSTFIX="${OUT_POSTFIX:-${CFG_POSTFIX:-resume}}"
 
 if [[ "${OUTDIR_BASE}" = /* ]]; then
@@ -62,7 +62,7 @@ mkdir -p "${RUN_DIR}"
 
 LOG_DIR="${LOG_DIR:-${PROJECT_ROOT}/logs}"
 mkdir -p "${LOG_DIR}"
-LOG_FILE="${LOG_DIR}/train_lhemi_ae_ddp_${SLURM_JOB_ID:-manual}_node${NODE_RANK}_$(date +%Y%m%d_%H%M%S).log"
+LOG_FILE="${LOG_DIR}/train_ldm_lhemi_ddp_${SLURM_JOB_ID:-manual}_node${NODE_RANK}_$(date +%Y%m%d_%H%M%S).log"
 
 echo "[launch] project_root=${PROJECT_ROOT}"
 echo "[launch] config=${CONFIG}"
@@ -75,12 +75,12 @@ echo "[launch] log=${LOG_FILE}"
 attempt=0
 while (( attempt <= MAX_RESTARTS )); do
   RESUME_ARGS=()
-  if [[ -f "${RUN_DIR}/AE_last.pt" ]]; then
-    RESUME_ARGS=(--resume_ae_ckpt "${RUN_DIR}/AE_last.pt")
+  if [[ -f "${RUN_DIR}/UNET_last.pt" ]]; then
+    RESUME_ARGS=(--resume_ckpt "${RUN_DIR}/UNET_last.pt")
   fi
 
   if (( ${#RESUME_ARGS[@]} > 0 )); then
-    echo "[launch] attempt=${attempt}/${MAX_RESTARTS} resume_from=${RUN_DIR}/AE_last.pt"
+    echo "[launch] attempt=${attempt}/${MAX_RESTARTS} resume_from=${RUN_DIR}/UNET_last.pt"
   else
     echo "[launch] attempt=${attempt}/${MAX_RESTARTS} fresh_start"
   fi
@@ -112,8 +112,8 @@ while (( attempt <= MAX_RESTARTS )); do
     exit "${rc}"
   fi
 
-  if [[ ! -f "${RUN_DIR}/AE_last.pt" ]]; then
-    echo "[launch] failed with rc=${rc}; no checkpoint found at ${RUN_DIR}/AE_last.pt" >&2
+  if [[ ! -f "${RUN_DIR}/UNET_last.pt" ]]; then
+    echo "[launch] failed with rc=${rc}; no checkpoint found at ${RUN_DIR}/UNET_last.pt" >&2
     exit "${rc}"
   fi
 

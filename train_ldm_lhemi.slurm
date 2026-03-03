@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH -J lhemi_ae_ddp
+#SBATCH -J ldm_lhemi_ddp
 #SBATCH -A ASC26009
 #SBATCH -p gh
 #SBATCH -N 8                  # node count; override at submit if needed
@@ -20,7 +20,7 @@ if [[ ! -f "${LAUNCH_SCRIPT}" ]]; then
   exit 1
 fi
 
-export CONFIG="${CONFIG:-configs/lhemi_AE_spacing1p5.json}"
+export CONFIG="${CONFIG:-configs/lhemi_LDM_spacing1p5.json}"
 export MAX_RESTARTS="${MAX_RESTARTS:-20}"
 export MAX_REQUEUE="${MAX_REQUEUE:-10}"
 
