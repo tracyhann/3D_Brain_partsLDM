@@ -311,3 +311,25 @@ sbatch -N 12 --ntasks-per-node=1 --gpus-per-node=8 \
 
 
 </details>
+
+
+# Inference
+
+## Ours
+
+```bash
+python scripts/infer_3d_brain_ldm_aux_taux.py   --config configs/infer/infer_whole_brain_aux_taux_spacing1p5.json   --erode_r 2
+```
+
+## Ablation 1: No Aux
+
+```bash
+python scripts/infer_3d_brain_ldm_aux_taux.py   --config configs/infer/infer_whole_brain_aux_taux_spacing1p5_NO_AUX.json   --erode_r 2
+```
+
+## Segm
+
+```bash
+python3 scripts/infer_3d_brain_ldm_segm.py \
+  --config configs/infer/infer_whole_brain_segmLDM_spacing1p5.json
+```
