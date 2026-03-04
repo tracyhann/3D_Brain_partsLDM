@@ -51,13 +51,13 @@
   "hemi_scale_factor": 0.0,
   "sub_scale_factor": 0.0,
 
-  "taux_min": 100,
-  "taux_max": 300,
+  "taux_min": 1,
+  "taux_max": 10,
   "part_taux_max": 200,
   "scaffold_mode": "forward_noise",
   "compose_flip_lhemi": false,
   "compose_flip_rhemi": false,
-  "compose_valid_thresh": -0.55,
+  "compose_valid_thresh": -0.8,
   "bg_value": -1.0,
 
   "samples_root": "samples",
@@ -66,5 +66,6 @@
   "t_aux": 1,
   "ddim_steps": 50,
   "taux_units": "ddim_steps_from_end",
-  "post_taux_steps": 1
+  "post_taux_steps": 1,
+  "erode_r": 2
 }
