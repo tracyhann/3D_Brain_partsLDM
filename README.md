@@ -477,9 +477,9 @@ https://huggingface.co/TencentMedicalNet/MedicalNet-Resnet10/blob/main/resnet_10
 ## Place in project dir
 - Change dir path
 ```bash
-mkdir -p /home/ttt/Desktop/wenyan/3D_Brain_partsLDM/ckpts/medicalnet
+mkdir -p /DATA2/lulin2/tracy/3D_Brain_partsLDM/ckpts/medicalnet
 cp /root/.cache/huggingface/hub/models--TencentMedicalNet--MedicalNet-Resnet10/snapshots/deeeaa1e2a342b63e28b61e9d993b63e79c4b437/resnet_10_23dataset.pth \
-   /home/ttt/Desktop/wenyan/3D_Brain_partsLDM/ckpts/medicalnet/
+   /DATA2/lulin2/tracy/3D_Brain_partsLDM/ckpts/medicalnet/
 ```
 
 ## Eval
