@@ -744,6 +744,7 @@ def run_pairwise_eval(
     use_medicalnet_mmd3d: bool,
     medicalnet_model: str,
     medicalnet_verbose: bool,
+    medicalnet_strict: bool,
     device: torch.device,
 ) -> Dict[str, float]:
     if len(pairs) == 0:
@@ -817,13 +818,24 @@ def run_pairwise_eval(
         feat_net = _InceptionV3Features().to(device)
         feat_net.eval()
     med3d_net = None
+    med3d_init_error = ""
     if bool(use_medicalnet_mmd3d):
-        med3d_net = _MedicalNet3DFeatures(
-            net=str(medicalnet_model),
-            verbose=bool(medicalnet_verbose),
-        ).to(device)
-        med3d_net.eval()
-        print(f"MedicalNet 3D MMD enabled with backbone: {medicalnet_model}")
+        try:
+            med3d_net = _MedicalNet3DFeatures(
+                net=str(medicalnet_model),
+                verbose=bool(medicalnet_verbose),
+            ).to(device)
+            med3d_net.eval()
+            print(f"MedicalNet 3D MMD enabled with backbone: {medicalnet_model}")
+        except Exception as e:
+            med3d_init_error = f"{type(e).__name__}: {e}"
+            if bool(medicalnet_strict):
+                raise
+            print(
+                "WARNING: MedicalNet 3D init failed; continuing without MedicalNet MMD. "
+                f"Error: {med3d_init_error}"
+            )
+            med3d_net = None
 
     med3d_feats_real_whole: List[torch.Tensor] = []
     med3d_feats_fake_whole: List[torch.Tensor] = []
@@ -1189,7 +1201,10 @@ def run_pairwise_eval(
         "mmd_rbf_sigma": float(mmd_sigma_used),
         "mmd_max_features": int(mmd_max_features),
         "use_medicalnet_mmd3d": bool(use_medicalnet_mmd3d),
+        "medicalnet_enabled": bool(med3d_net is not None),
         "medicalnet_model": str(medicalnet_model),
+        "medicalnet_strict": bool(medicalnet_strict),
+        "medicalnet_init_error": med3d_init_error,
         "intensity_mode": intensity_mode,
         "norm_percentiles": [float(norm_percentiles[0]), float(norm_percentiles[1])],
         "fid_slice_axes": [int(a) for a in fid_slice_axes],
@@ -1286,6 +1301,11 @@ def main():
         "--medicalnet_verbose",
         action="store_true",
         help="Enable verbose torch.hub output for MedicalNet loading.",
+    )
+    ap.add_argument(
+        "--medicalnet_strict",
+        action="store_true",
+        help="Fail evaluation if MedicalNet cannot be initialized/downloaded.",
     )
     ap.add_argument(
         "--intensity_mode",
@@ -1430,7 +1450,8 @@ def main():
         "MedicalNet 3D MMD config: "
         f"enabled={bool(args.use_medicalnet_mmd3d)}, "
         f"model={str(args.medicalnet_model)}, "
-        f"verbose={bool(args.medicalnet_verbose)}"
+        f"verbose={bool(args.medicalnet_verbose)}, "
+        f"strict={bool(args.medicalnet_strict)}"
     )
     print(
         f"Intensity config: mode={intensity_mode}, "
@@ -1558,6 +1579,7 @@ def main():
         use_medicalnet_mmd3d=bool(args.use_medicalnet_mmd3d),
         medicalnet_model=str(args.medicalnet_model),
         medicalnet_verbose=bool(args.medicalnet_verbose),
+        medicalnet_strict=bool(args.medicalnet_strict),
         device=device,
     )
 
