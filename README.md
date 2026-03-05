@@ -485,21 +485,8 @@ cp /root/.cache/huggingface/hub/models--TencentMedicalNet--MedicalNet-Resnet10/s
 ## Eval
 ### Segmentation LDM
 ```bash
-python3 scripts/evaluation.py \
-  --generated_dir samples/whole_brain_mask_UNET_spacing1p5_ddp \
-  --csv data/processed_parts/whole_brain+3parts+masks_0206.csv \
-  --data_split_json_path data/patient_splits_image_ids_75_10_15.json \
-  --image_key whole_brain \
-  --dist_feature_mode inception2d \
-  --fid_slice_axes ax,cor,sag \
-  --fid_slices_per_axis 16 \
-  --fid_slice_margin 16 \
-  --mmd_kernel rbf \
-  --intensity_mode normalize_both \
-  --norm_percentiles 0.5,99.5 \
-  --use_medicalnet_mmd3d \
-  --medicalnet_model medicalnet_resnet10_23datasets \
-  --medicalnet_strict
+cd /DATA2/lulin2/tracy/3D_Brain_partsLDM
+bash scripts/run_eval_all_samples.sh
 ```
 
 # Grab files
