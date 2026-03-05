@@ -2,8 +2,8 @@ import os, glob, shutil, tarfile
 import pandas as pd
 
 # ========= config =========
-SAMPLES_ROOT = "wenyan/3D_Brain_partsLDM/samples"   # contains many subfolders
-OUT_ROOT     = "wenyan/3D_Brain_partsLDM/samples_worst20"
+SAMPLES_ROOT = "samples"   # contains many subfolders
+OUT_ROOT     = "samples_worst20"
 N_WORST      = 20
 TAR_PATH     = OUT_ROOT + ".tar.gz"
 # ==========================
