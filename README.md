@@ -466,6 +466,37 @@ python /workspace/SynthSeg/scripts/commands/SynthSeg_predict.py \
 ```
 
 
+# 3D MMD
+## Download MedicalNet
+```bash
+https://drive.google.com/file/d/13tnSvXY7oDIEloNFiGTsjUIYfS3g3BfG/view
+```
+
+## Place in Docker
+```bash
+docker cp ~/Downloads/<FILENAME>.pth 35dbbc6527e7:/root/.cache/torch/hub/checkpoints/<FILENAME>.pth
+```
+
+## Eval
+### Segmentation LDM
+```bash
+python3 scripts/evaluation.py \
+  --generated_dir samples/whole_brain_mask_UNET_spacing1p5_ddp \
+  --csv data/processed_parts/whole_brain+3parts+masks_0206.csv \
+  --data_split_json_path data/patient_splits_image_ids_75_10_15.json \
+  --image_key whole_brain \
+  --dist_feature_mode inception2d \
+  --fid_slice_axes ax,cor,sag \
+  --fid_slices_per_axis 16 \
+  --fid_slice_margin 16 \
+  --mmd_kernel rbf \
+  --intensity_mode normalize_both \
+  --norm_percentiles 0.5,99.5 \
+  --use_medicalnet_mmd3d \
+  --medicalnet_model medicalnet_resnet10_23datasets \
+  --medicalnet_strict
+```
+
 # Grab files
 ```bash
 python3 keep_worst20.py
