@@ -127,7 +127,8 @@ def _seed_medicalnet_ckpt_to_torch_hub(
 
     ckpt_name = MEDICALNET_CKPT_NAMES.get(str(model_name), "").strip() or os.path.basename(src)
     hub_dir = torch.hub.get_dir()
-    hub_ckpt_dir = os.path.join(hub_dir, "checkpoints")
+    # Warvito MedicalNet loader uses torch.hub.get_dir()/medicalnet by default.
+    hub_ckpt_dir = os.path.join(hub_dir, "medicalnet")
     os.makedirs(hub_ckpt_dir, exist_ok=True)
     dst = os.path.join(hub_ckpt_dir, ckpt_name)
 
@@ -676,15 +677,19 @@ class _MedicalNet3DFeatures(nn.Module):
     Input expected as [B,1,D,H,W].
     """
 
-    def __init__(self, *, net: str, verbose: bool = False) -> None:
+    def __init__(self, *, net: str, verbose: bool = False, model_dir: str = "") -> None:
         super().__init__()
         # Keep compatibility with the same loading approach used in evaluation_ARC.py.
         torch.hub._validate_not_a_forked_repo = lambda a, b, c: True
+        hub_kwargs = {}
+        if str(model_dir).strip():
+            hub_kwargs["model_dir"] = str(model_dir).strip()
         self.model = torch.hub.load(
             "warvito/MedicalNet-models",
             model=str(net),
             verbose=bool(verbose),
             trust_repo=True,
+            **hub_kwargs,
         )
         self.model.eval()
         for p in self.model.parameters():
@@ -945,6 +950,7 @@ def run_pairwise_eval(
     med3d_init_error = ""
     med3d_project_ckpt_path = ""
     med3d_project_ckpt_error = ""
+    med3d_model_dir = ""
     med3d_hub_seed_path = ""
     med3d_hub_seed_error = ""
     med3d_hf_seed_path = ""
@@ -957,6 +963,7 @@ def run_pairwise_eval(
         )
         if med3d_project_ckpt_path:
             print(f"MedicalNet project checkpoint found: {med3d_project_ckpt_path}")
+            med3d_model_dir = os.path.dirname(med3d_project_ckpt_path)
 
         try:
             if not med3d_project_ckpt_path:
@@ -996,6 +1003,7 @@ def run_pairwise_eval(
             med3d_net = _MedicalNet3DFeatures(
                 net=str(medicalnet_model),
                 verbose=bool(medicalnet_verbose),
+                model_dir=med3d_model_dir,
             ).to(device)
             med3d_net.eval()
             print(f"MedicalNet 3D MMD enabled with backbone: {medicalnet_model}")
@@ -1378,6 +1386,7 @@ def run_pairwise_eval(
         "medicalnet_ckpt_path": str(medicalnet_ckpt_path),
         "medicalnet_ckpt_dir": str(medicalnet_ckpt_dir),
         "medicalnet_project_ckpt_path": med3d_project_ckpt_path,
+        "medicalnet_model_dir_used": med3d_model_dir,
         "medicalnet_project_ckpt_error": med3d_project_ckpt_error,
         "medicalnet_hub_seed_path": med3d_hub_seed_path,
         "medicalnet_hub_seed_error": med3d_hub_seed_error,
