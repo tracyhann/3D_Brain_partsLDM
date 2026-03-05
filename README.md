@@ -468,6 +468,11 @@ python /workspace/SynthSeg/scripts/commands/SynthSeg_predict.py \
 
 # 3D MMD
 ## Download MedicalNet
+
+- Huggingface
+```bash
+https://huggingface.co/TencentMedicalNet/MedicalNet-Resnet10/blob/main/resnet_10_23dataset.pth
+```
 ```bash
 https://drive.google.com/file/d/13tnSvXY7oDIEloNFiGTsjUIYfS3g3BfG/view
 ```
