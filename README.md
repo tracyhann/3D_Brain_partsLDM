@@ -464,3 +464,9 @@ python /workspace/SynthSeg/scripts/commands/SynthSeg_predict.py \
 --v1 --threads 16 \
 --fast --qc /data/qc --vol /data/vol
 ```
+
+
+# Grab files
+```bash
+
+```
