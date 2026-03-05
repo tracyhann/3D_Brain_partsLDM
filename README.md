@@ -321,15 +321,131 @@ sbatch -N 12 --ntasks-per-node=1 --gpus-per-node=8 \
 python scripts/infer_3d_brain_ldm_aux_taux.py   --config configs/infer/infer_whole_brain_aux_taux_spacing1p5.json   --erode_r 2
 ```
 
-## Ablation 1: No Aux
+## Ablation: No Aux
 
 ```bash
 python scripts/infer_3d_brain_ldm_aux_taux.py   --config configs/infer/infer_whole_brain_aux_taux_spacing1p5_NO_AUX.json   --erode_r 2
 ```
 
-## Segm
+## Ablation: No INj
+```bash
+python3 scripts/infer_3d_brain_ldm_steps.py \
+  --csv data/processed_parts/whole_brain_0206.csv \
+  --data_split_json_path data/patient_splits_image_ids_75_10_15.json \
+  --ae_ckpt ckpts/AE/whole_brain_AE_spacing1p5/AE_best.pt \
+  --ldm_ckpt ckpts/UNET/whole_brain_aux_taux_UNET_spacing1p5/UNET_last.pt \
+  --workers 0 \
+  --spacing 1.5,1.5,1.5 \
+  --size 128,128,128 \
+  --conditions age,sex,group,imageID \
+  --ddim_steps 50 \
+  --num_samples -1 \
+  --outdir samples \
+  --outdir samples \
+  --out_prefix whole_brain_aux_taux_NO_INJ \
+  --out_postfix UNET_spacing1p5
+
+```
+
+
+
+
+## Segm (IGNORE)
 
 ```bash
 python3 scripts/infer_3d_brain_ldm_segm.py \
   --config configs/infer/infer_whole_brain_segmLDM_spacing1p5.json
+```
+
+
+## SEGMENTATION
+
+### Example cmd structure
+#### REPLACE with your data volume dir. 
+`-v /PATH/TO/PROJ`
+
+```bash
+docker run -it --rm  -v /home/ttt/Desktop/wenyan/3D_Brain_partsLDM/samples/whole_brain_aux_taux_UNET_spacing1p5:/data   pwesp/synthseg:py38
+```
+
+```bash
+python /workspace/SynthSeg/scripts/commands/SynthSeg_predict.py \
+--i /data \
+--o /data/segm \
+--v1 --threads 16 \
+--fast --qc /data/qc --vol /data/vol
+```
+
+
+
+
+
+### DO THE ABOVE STEP FOR EACH FOLDER OF SAMPLES 
+
+#### OURS
+```bash
+docker run -it --rm  -v /PATH/TO/PROJ/3D_Brain_partsLDM/samples/whole_brain_aux_taux_UNET_spacing1p5:/data   pwesp/synthseg:py38
+```
+
+```bash
+python /workspace/SynthSeg/scripts/commands/SynthSeg_predict.py \
+--i /data \
+--o /data/segm \
+--v1 --threads 16 \
+--fast --qc /data/qc --vol /data/vol
+```
+
+
+#### ABLATION: NO AUX
+```bash
+docker run -it --rm  -v /PATH/TO/PROJ/3D_Brain_partsLDM/samples/whole_brain_aux_taux_NO_AUX_UNET_spacing1p5:/data   pwesp/synthseg:py38
+```
+
+```bash
+python /workspace/SynthSeg/scripts/commands/SynthSeg_predict.py \
+--i /data \
+--o /data/segm \
+--v1 --threads 16 \
+--fast --qc /data/qc --vol /data/vol
+```
+
+#### ABLATION: NO INJECTION
+```bash
+docker run -it --rm  -v /PATH/TO/PROJ/3D_Brain_partsLDM/samples/whole_brain_aux_taux_NO_INJ_UNET_spacing1p5:/data   pwesp/synthseg:py38
+```
+
+```bash
+python /workspace/SynthSeg/scripts/commands/SynthSeg_predict.py \
+--i /data \
+--o /data/segm \
+--v1 --threads 16 \
+--fast --qc /data/qc --vol /data/vol
+```
+
+
+#### BASELINE 1: LDM 
+```bash
+docker run -it --rm  -v /PATH/TO/PROJ/3D_Brain_partsLDM/samples/whole_brain_aux_taux_NO_AUX_UNET_spacing1p5:/data   pwesp/synthseg:py38
+```
+
+```bash
+python /workspace/SynthSeg/scripts/commands/SynthSeg_predict.py \
+--i /data \
+--o /data/segm \
+--v1 --threads 16 \
+--fast --qc /data/qc --vol /data/vol
+```
+
+
+#### BASELINE 2: Segmentation-conditioned LDM
+```bash
+docker run -it --rm  -v /PATH/TO/PROJ/3D_Brain_partsLDM/samples/whole_brain_mask_UNET_spacing1p5_ddp:/data   pwesp/synthseg:py38
+```
+
+```bash
+python /workspace/SynthSeg/scripts/commands/SynthSeg_predict.py \
+--i /data \
+--o /data/segm \
+--v1 --threads 16 \
+--fast --qc /data/qc --vol /data/vol
 ```
