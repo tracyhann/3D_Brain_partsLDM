@@ -378,7 +378,20 @@ python /workspace/SynthSeg/scripts/commands/SynthSeg_predict.py \
 --fast --qc /data/qc --vol /data/vol
 ```
 
+##### Also download these samples and place them under `/sample`
+https://huggingface.co/datasets/tracyhan816/3D_Brain_partsLDM/tree/main
 
+#### REAL 
+```bash
+docker run -it --rm  -v /PATH/TO/PROJ/3D_Brain_partsLDM/samples/real_test_samples:/data   pwesp/synthseg:py38
+```
+```bash
+python /workspace/SynthSeg/scripts/commands/SynthSeg_predict.py \
+--i /data \
+--o /data/segm \
+--v1 --threads 16 \
+--fast --qc /data/qc --vol /data/vol
+```
 
 
 
