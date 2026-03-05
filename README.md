@@ -483,7 +483,6 @@ cp /root/.cache/huggingface/hub/models--TencentMedicalNet--MedicalNet-Resnet10/s
 ```
 
 ## Eval
-### Segmentation LDM
 ```bash
 cd /DATA2/lulin2/tracy/3D_Brain_partsLDM
 bash scripts/run_eval_all_samples.sh
