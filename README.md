@@ -468,5 +468,5 @@ python /workspace/SynthSeg/scripts/commands/SynthSeg_predict.py \
 
 # Grab files
 ```bash
-
+python3 keep_worst20.py
 ```
