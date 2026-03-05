@@ -2,9 +2,11 @@ import argparse
 import json
 import os
 import re
+import shutil
 import sys
 from datetime import datetime
 from typing import Dict, List, Tuple
+from urllib.request import urlopen
 
 import numpy as np
 import pandas as pd
@@ -18,6 +20,124 @@ from torch import nn
 from eval_utils import fid_from_features
 
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+MEDICALNET_PROJECT_CKPT_DIR = os.path.join(PROJECT_ROOT, "ckpts", "medicalnet")
+MEDICALNET_HF_DEFAULT_URLS: Dict[str, str] = {
+    "medicalnet_resnet10_23datasets": "https://huggingface.co/TencentMedicalNet/MedicalNet-Resnet10/resolve/main/resnet_10_23dataset.pth",
+    "medicalnet_resnet50_23datasets": "https://huggingface.co/TencentMedicalNet/MedicalNet-Resnet50/resolve/main/resnet_50_23dataset.pth",
+}
+MEDICALNET_CKPT_NAMES: Dict[str, str] = {
+    "medicalnet_resnet10_23datasets": "resnet_10_23dataset.pth",
+    "medicalnet_resnet50_23datasets": "resnet_50_23dataset.pth",
+}
+
+
+def _canonical_hf_url(url: str) -> str:
+    u = str(url).strip()
+    if not u:
+        return ""
+    if "huggingface.co" in u and "/blob/" in u:
+        u = u.replace("/blob/", "/resolve/")
+    if "huggingface.co" in u and "/resolve/" in u and "download=true" not in u:
+        sep = "&" if "?" in u else "?"
+        u = f"{u}{sep}download=true"
+    return u
+
+
+def _seed_medicalnet_ckpt_from_hf(
+    *,
+    model_name: str,
+    hf_url: str,
+    force_download: bool,
+    dst_dir: str,
+) -> str:
+    ckpt_name = MEDICALNET_CKPT_NAMES.get(str(model_name), "")
+    url = _canonical_hf_url(str(hf_url).strip())
+    if not url:
+        url = _canonical_hf_url(MEDICALNET_HF_DEFAULT_URLS.get(str(model_name), ""))
+    if not ckpt_name and url:
+        ckpt_name = os.path.basename(url.split("?", 1)[0])
+    if not ckpt_name or not url:
+        return ""
+
+    ckpt_dir = os.path.abspath(str(dst_dir).strip())
+    os.makedirs(ckpt_dir, exist_ok=True)
+    dst = os.path.join(ckpt_dir, ckpt_name)
+
+    if os.path.exists(dst) and not bool(force_download):
+        return dst
+
+    tmp = f"{dst}.tmp"
+    print(f"Downloading MedicalNet checkpoint from HuggingFace: {url}")
+    with urlopen(url) as r, open(tmp, "wb") as f:
+        while True:
+            chunk = r.read(1024 * 1024)
+            if not chunk:
+                break
+            f.write(chunk)
+    os.replace(tmp, dst)
+    print(f"Saved MedicalNet checkpoint: {dst}")
+    return dst
+
+
+def _resolve_project_medicalnet_ckpt(
+    *,
+    model_name: str,
+    ckpt_path: str,
+    ckpt_dir: str,
+) -> str:
+    model = str(model_name).strip()
+    ckpt_name = MEDICALNET_CKPT_NAMES.get(model, "")
+    candidates: List[str] = []
+
+    p = str(ckpt_path).strip()
+    if p:
+        candidates.append(p if os.path.isabs(p) else os.path.join(PROJECT_ROOT, p))
+
+    d = str(ckpt_dir).strip()
+    if d and ckpt_name:
+        base_dir = d if os.path.isabs(d) else os.path.join(PROJECT_ROOT, d)
+        candidates.append(os.path.join(base_dir, ckpt_name))
+
+    if ckpt_name:
+        candidates.append(os.path.join(MEDICALNET_PROJECT_CKPT_DIR, ckpt_name))
+        candidates.append(os.path.join(PROJECT_ROOT, "ckpts", ckpt_name))
+
+    seen = set()
+    for cand in candidates:
+        if not cand:
+            continue
+        c = os.path.abspath(cand)
+        if c in seen:
+            continue
+        seen.add(c)
+        if os.path.isfile(c):
+            return c
+    return ""
+
+
+def _seed_medicalnet_ckpt_to_torch_hub(
+    *,
+    model_name: str,
+    local_ckpt_path: str,
+    force: bool,
+) -> str:
+    src = os.path.abspath(str(local_ckpt_path).strip())
+    if not src or not os.path.isfile(src):
+        return ""
+
+    ckpt_name = MEDICALNET_CKPT_NAMES.get(str(model_name), "").strip() or os.path.basename(src)
+    hub_dir = torch.hub.get_dir()
+    hub_ckpt_dir = os.path.join(hub_dir, "checkpoints")
+    os.makedirs(hub_ckpt_dir, exist_ok=True)
+    dst = os.path.join(hub_ckpt_dir, ckpt_name)
+
+    if os.path.exists(dst) and not bool(force):
+        return dst
+    if os.path.abspath(src) == os.path.abspath(dst):
+        return dst
+
+    shutil.copy2(src, dst)
+    return dst
 
 
 def _normalize_image_id(v) -> str:
@@ -743,6 +863,10 @@ def run_pairwise_eval(
     sub_mask_path: str,
     use_medicalnet_mmd3d: bool,
     medicalnet_model: str,
+    medicalnet_ckpt_path: str,
+    medicalnet_ckpt_dir: str,
+    medicalnet_hf_url: str,
+    medicalnet_hf_force_download: bool,
     medicalnet_verbose: bool,
     medicalnet_strict: bool,
     device: torch.device,
@@ -819,7 +943,55 @@ def run_pairwise_eval(
         feat_net.eval()
     med3d_net = None
     med3d_init_error = ""
+    med3d_project_ckpt_path = ""
+    med3d_project_ckpt_error = ""
+    med3d_hub_seed_path = ""
+    med3d_hub_seed_error = ""
+    med3d_hf_seed_path = ""
+    med3d_hf_seed_error = ""
     if bool(use_medicalnet_mmd3d):
+        med3d_project_ckpt_path = _resolve_project_medicalnet_ckpt(
+            model_name=str(medicalnet_model),
+            ckpt_path=str(medicalnet_ckpt_path),
+            ckpt_dir=str(medicalnet_ckpt_dir),
+        )
+        if med3d_project_ckpt_path:
+            print(f"MedicalNet project checkpoint found: {med3d_project_ckpt_path}")
+
+        try:
+            if not med3d_project_ckpt_path:
+                med3d_hf_seed_path = _seed_medicalnet_ckpt_from_hf(
+                    model_name=str(medicalnet_model),
+                    hf_url=str(medicalnet_hf_url),
+                    force_download=bool(medicalnet_hf_force_download),
+                    dst_dir=str(medicalnet_ckpt_dir),
+                )
+                if med3d_hf_seed_path:
+                    med3d_project_ckpt_path = med3d_hf_seed_path
+                    print(f"MedicalNet checkpoint downloaded to project ckpts: {med3d_hf_seed_path}")
+        except Exception as e:
+            med3d_hf_seed_error = f"{type(e).__name__}: {e}"
+            print(f"WARNING: MedicalNet HF pre-download failed: {med3d_hf_seed_error}")
+
+        try:
+            if med3d_project_ckpt_path:
+                med3d_hub_seed_path = _seed_medicalnet_ckpt_to_torch_hub(
+                    model_name=str(medicalnet_model),
+                    local_ckpt_path=med3d_project_ckpt_path,
+                    force=bool(medicalnet_hf_force_download),
+                )
+                if med3d_hub_seed_path:
+                    print(f"MedicalNet checkpoint seeded to torch hub cache: {med3d_hub_seed_path}")
+            else:
+                med3d_project_ckpt_error = (
+                    f"No local checkpoint found for model '{medicalnet_model}' in "
+                    f"ckpt_path='{medicalnet_ckpt_path}' or ckpt_dir='{medicalnet_ckpt_dir}'."
+                )
+                print(f"WARNING: {med3d_project_ckpt_error}")
+        except Exception as e:
+            med3d_hub_seed_error = f"{type(e).__name__}: {e}"
+            print(f"WARNING: MedicalNet local->hub seeding failed: {med3d_hub_seed_error}")
+
         try:
             med3d_net = _MedicalNet3DFeatures(
                 net=str(medicalnet_model),
@@ -1203,6 +1375,16 @@ def run_pairwise_eval(
         "use_medicalnet_mmd3d": bool(use_medicalnet_mmd3d),
         "medicalnet_enabled": bool(med3d_net is not None),
         "medicalnet_model": str(medicalnet_model),
+        "medicalnet_ckpt_path": str(medicalnet_ckpt_path),
+        "medicalnet_ckpt_dir": str(medicalnet_ckpt_dir),
+        "medicalnet_project_ckpt_path": med3d_project_ckpt_path,
+        "medicalnet_project_ckpt_error": med3d_project_ckpt_error,
+        "medicalnet_hub_seed_path": med3d_hub_seed_path,
+        "medicalnet_hub_seed_error": med3d_hub_seed_error,
+        "medicalnet_hf_url": _canonical_hf_url(str(medicalnet_hf_url)),
+        "medicalnet_hf_force_download": bool(medicalnet_hf_force_download),
+        "medicalnet_hf_seed_path": med3d_hf_seed_path,
+        "medicalnet_hf_seed_error": med3d_hf_seed_error,
         "medicalnet_strict": bool(medicalnet_strict),
         "medicalnet_init_error": med3d_init_error,
         "intensity_mode": intensity_mode,
@@ -1296,6 +1478,27 @@ def main():
         "--medicalnet_model",
         default="medicalnet_resnet10_23datasets",
         help="MedicalNet torch.hub model name (e.g. medicalnet_resnet10_23datasets).",
+    )
+    ap.add_argument(
+        "--medicalnet_ckpt_dir",
+        default="ckpts/medicalnet",
+        help="Project directory for MedicalNet checkpoints (preferred source).",
+    )
+    ap.add_argument(
+        "--medicalnet_ckpt_path",
+        default="",
+        help="Optional explicit MedicalNet checkpoint path. Overrides directory lookup.",
+    )
+    ap.add_argument(
+        "--medicalnet_hf_url",
+        default="",
+        help="Optional HuggingFace checkpoint URL used to pre-seed torch hub cache. "
+        "Both '/blob/' and '/resolve/' links are accepted.",
+    )
+    ap.add_argument(
+        "--medicalnet_hf_force_download",
+        action="store_true",
+        help="Force re-download of the MedicalNet checkpoint from HuggingFace.",
     )
     ap.add_argument(
         "--medicalnet_verbose",
@@ -1397,6 +1600,18 @@ def main():
         # Generated args may come from train/infer scripts with different key names.
         image_key = str(generated_args.get("image_key", "")).strip() or str(generated_args.get("whole_key", "")).strip()
 
+    medicalnet_ckpt_dir = str(args.medicalnet_ckpt_dir).strip() or MEDICALNET_PROJECT_CKPT_DIR
+    if not os.path.isabs(medicalnet_ckpt_dir):
+        medicalnet_ckpt_dir = os.path.join(PROJECT_ROOT, medicalnet_ckpt_dir)
+    medicalnet_ckpt_dir = os.path.abspath(medicalnet_ckpt_dir)
+
+    medicalnet_ckpt_path = str(args.medicalnet_ckpt_path).strip()
+    if medicalnet_ckpt_path:
+        medicalnet_ckpt_path = _resolve_existing_path(medicalnet_ckpt_path, generated_dir)
+        if not os.path.isabs(medicalnet_ckpt_path):
+            medicalnet_ckpt_path = os.path.join(PROJECT_ROOT, medicalnet_ckpt_path)
+        medicalnet_ckpt_path = os.path.abspath(medicalnet_ckpt_path)
+
     base_outdir = generated_dir if not str(args.outdir).strip() else os.path.abspath(args.outdir)
     outdir = os.path.join(base_outdir, args.run_name) if str(args.run_name).strip() else base_outdir
     os.makedirs(outdir, exist_ok=True)
@@ -1417,6 +1632,8 @@ def main():
     resolved_args["lhemi_mask_path"] = lhemi_mask_path
     resolved_args["rhemi_mask_path"] = rhemi_mask_path
     resolved_args["sub_mask_path"] = sub_mask_path
+    resolved_args["medicalnet_ckpt_dir_resolved"] = medicalnet_ckpt_dir
+    resolved_args["medicalnet_ckpt_path_resolved"] = medicalnet_ckpt_path
     eval_args_path = os.path.join(outdir, "eval_args.json")
     with open(eval_args_path, "w", encoding="utf-8") as f:
         json.dump(resolved_args, f, indent=2, sort_keys=True)
@@ -1450,6 +1667,10 @@ def main():
         "MedicalNet 3D MMD config: "
         f"enabled={bool(args.use_medicalnet_mmd3d)}, "
         f"model={str(args.medicalnet_model)}, "
+        f"ckpt_dir={medicalnet_ckpt_dir}, "
+        f"ckpt_path={medicalnet_ckpt_path or '(auto by model)'}, "
+        f"hf_url={_canonical_hf_url(str(args.medicalnet_hf_url)) or '(default by model)'}, "
+        f"hf_force_download={bool(args.medicalnet_hf_force_download)}, "
         f"verbose={bool(args.medicalnet_verbose)}, "
         f"strict={bool(args.medicalnet_strict)}"
     )
@@ -1578,6 +1799,10 @@ def main():
         sub_mask_path=sub_mask_path,
         use_medicalnet_mmd3d=bool(args.use_medicalnet_mmd3d),
         medicalnet_model=str(args.medicalnet_model),
+        medicalnet_ckpt_path=medicalnet_ckpt_path,
+        medicalnet_ckpt_dir=medicalnet_ckpt_dir,
+        medicalnet_hf_url=str(args.medicalnet_hf_url),
+        medicalnet_hf_force_download=bool(args.medicalnet_hf_force_download),
         medicalnet_verbose=bool(args.medicalnet_verbose),
         medicalnet_strict=bool(args.medicalnet_strict),
         device=device,
