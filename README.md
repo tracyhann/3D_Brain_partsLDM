@@ -473,13 +473,13 @@ python /workspace/SynthSeg/scripts/commands/SynthSeg_predict.py \
 ```bash
 https://huggingface.co/TencentMedicalNet/MedicalNet-Resnet10/blob/main/resnet_10_23dataset.pth
 ```
-```bash
-https://drive.google.com/file/d/13tnSvXY7oDIEloNFiGTsjUIYfS3g3BfG/view
-```
 
-## Place in Docker
+## Place in project dir
+- Change dir path
 ```bash
-docker cp ~/Downloads/<FILENAME>.pth 35dbbc6527e7:/root/.cache/torch/hub/checkpoints/<FILENAME>.pth
+mkdir -p /home/ttt/Desktop/wenyan/3D_Brain_partsLDM/ckpts/medicalnet
+cp /root/.cache/huggingface/hub/models--TencentMedicalNet--MedicalNet-Resnet10/snapshots/deeeaa1e2a342b63e28b61e9d993b63e79c4b437/resnet_10_23dataset.pth \
+   /home/ttt/Desktop/wenyan/3D_Brain_partsLDM/ckpts/medicalnet/
 ```
 
 ## Eval
