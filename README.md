@@ -378,7 +378,7 @@ python /workspace/SynthSeg/scripts/commands/SynthSeg_predict.py \
 --fast --qc /data/qc --vol /data/vol
 ```
 
-##### Also download these samples and place them under `/sample`
+##### Also download these samples and place them under `/samples`
 https://huggingface.co/datasets/tracyhan816/3D_Brain_partsLDM/tree/main
 
 #### REAL 
