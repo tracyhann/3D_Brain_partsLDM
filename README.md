@@ -203,6 +203,15 @@ sbatch -N 12 --ntasks-per-node=1 --gpus-per-node=8 \
 - The actual runtime of this experiment has not been tested.
 - The slurm job below will run 2 steps consecutively.
 
+#### Train context conditioning cLDM for part fusion
+
+```bash
+cd <PATH_TO_PROJECT>/3D_Brain_partsLDM
+sbatch -N 12 --ntasks-per-node=1 --gpus-per-node=8 \
+  --export=ALL,PROJECT_ROOT=<PATH_TO_PROJECT>/3D_Brain_partsLDM,NPROC_PER_NODE=8,CONFIG=configs/whole_brain_aux_taux_spacing1p5_CONTEXT.json,MASTER_PORT=29620,MAX_RESTARTS=20,MAX_REQUEUE=10 \
+  train_ldm_aux_taux_context_ddp.slurm)
+```
+
 ### Slurm:
 #### Launch 96-GPU DDP Training (12 nodes × 8 GPUs)
 
@@ -321,13 +330,13 @@ sbatch -N 12 --ntasks-per-node=1 --gpus-per-node=8 \
 python scripts/infer_3d_brain_ldm_aux_taux.py   --config configs/infer/infer_whole_brain_aux_taux_spacing1p5.json   --erode_r 2
 ```
 
-## Ablation: No Aux
+## Ablation: No Aux ✅
 
 ```bash
 python scripts/infer_3d_brain_ldm_aux_taux.py   --config configs/infer/infer_whole_brain_aux_taux_spacing1p5_NO_AUX.json   --erode_r 2
 ```
 
-## Ablation: No INj
+## Ablation: No INJ ✅
 ```bash
 python3 scripts/infer_3d_brain_ldm_steps.py \
   --csv data/processed_parts/whole_brain_0206.csv \
