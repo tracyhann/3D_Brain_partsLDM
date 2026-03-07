@@ -360,6 +360,14 @@ sbatch -N 12 --ntasks-per-node=1 --gpus-per-node=8 \
 `https://huggingface.co/nnuochen/3D_Brain_partsLDM/tree/main/lhemi_UNET_spacing1p5_ddp`
 #### rhemi ldm; place under `ckpts/UNET/`
 `https://huggingface.co/nnuochen/3D_Brain_partsLDM/tree/main/rhemi_UNET_spacing1p5_ddp`
+#### Fusion LDM
+
+```bash
+cd <PATH_TO_PROJECT>/3D_Brain_partsLDM
+sbatch -N 12 --ntasks-per-node=1 --gpus-per-node=8 \
+  --export=ALL,PROJECT_ROOT=<PATH_TO_PROJECT>/3D_Brain_partsLDM,NPROC_PER_NODE=8,CONFIG=configs/whole_brain_aux_taux_spacing1p5_DiffHEMI.json,MASTER_PORT=29640,MAX_RESTARTS=20,MAX_REQUEUE=10 \
+  train_ldm_aux_taux_DiffHEMI_ddp.slurm
+```
 
 </details>
 
