@@ -443,7 +443,7 @@ python /workspace/SynthSeg/scripts/commands/SynthSeg_predict.py \
 --fast --qc /data/qc --vol /data/vol
 ```
 
-##### Also download these samples and place them under `/samples`
+##### Also download these samples and place them under `/samples`  ✅
 https://huggingface.co/datasets/tracyhan816/3D_Brain_partsLDM/tree/main
 
 #### REAL 
@@ -462,7 +462,7 @@ python /workspace/SynthSeg/scripts/commands/SynthSeg_predict.py \
 
 ### DO THE ABOVE STEP FOR EACH FOLDER OF SAMPLES 
 
-#### OURS
+#### OURS ✅
 ```bash
 docker run -it --rm  -v /PATH/TO/PROJ/3D_Brain_partsLDM/samples/whole_brain_aux_taux_UNET_spacing1p5:/data   pwesp/synthseg:py38
 ```
@@ -476,7 +476,7 @@ python /workspace/SynthSeg/scripts/commands/SynthSeg_predict.py \
 ```
 
 
-#### ABLATION: NO AUX
+#### ABLATION: NO AUX ✅
 ```bash
 docker run -it --rm  -v /PATH/TO/PROJ/3D_Brain_partsLDM/samples/whole_brain_aux_taux_NO_AUX_UNET_spacing1p5:/data   pwesp/synthseg:py38
 ```
@@ -489,7 +489,7 @@ python /workspace/SynthSeg/scripts/commands/SynthSeg_predict.py \
 --fast --qc /data/qc --vol /data/vol
 ```
 
-#### ABLATION: NO INJECTION
+#### ABLATION: NO INJECTION ✅
 ```bash
 docker run -it --rm  -v /PATH/TO/PROJ/3D_Brain_partsLDM/samples/whole_brain_aux_taux_NO_INJ_UNET_spacing1p5:/data   pwesp/synthseg:py38
 ```
@@ -503,7 +503,7 @@ python /workspace/SynthSeg/scripts/commands/SynthSeg_predict.py \
 ```
 
 
-#### BASELINE 1: LDM 
+#### BASELINE 1: LDM ✅
 ```bash
 docker run -it --rm  -v /PATH/TO/PROJ/3D_Brain_partsLDM/samples/whole_brain_aux_taux_NO_AUX_UNET_spacing1p5:/data   pwesp/synthseg:py38
 ```
@@ -517,7 +517,7 @@ python /workspace/SynthSeg/scripts/commands/SynthSeg_predict.py \
 ```
 
 
-#### BASELINE 2: Segmentation-conditioned LDM
+#### BASELINE 2: Segmentation-conditioned LDM ✅
 ```bash
 docker run -it --rm  -v /PATH/TO/PROJ/3D_Brain_partsLDM/samples/whole_brain_mask_UNET_spacing1p5_ddp:/data   pwesp/synthseg:py38
 ```
@@ -531,7 +531,7 @@ python /workspace/SynthSeg/scripts/commands/SynthSeg_predict.py \
 ```
 
 
-# 3D MMD
+# 3D MMD ✅
 ## Download MedicalNet
 
 - Huggingface
