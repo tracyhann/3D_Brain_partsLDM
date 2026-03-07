@@ -322,12 +322,70 @@ sbatch -N 12 --ntasks-per-node=1 --gpus-per-node=8 \
 
 # FOR LULIN
 
+# Ablations
+
+## Ablation 2: Context conditioning cLDM for fusion of parts
+<details>
+<summary><strong>Details</strong></summary>
+
+#### *Estimated* runtime: ~50 + 160 GPU hours on H100 (2 steps)
+
+- The actual runtime of this experiment has not been tested.
+- The slurm job below will run 2 steps consecutively.
+
+#### Train context conditioning cLDM for part fusion
+
+```bash
+cd <PATH_TO_PROJECT>/3D_Brain_partsLDM
+sbatch -N 12 --ntasks-per-node=1 --gpus-per-node=8 \
+  --export=ALL,PROJECT_ROOT=<PATH_TO_PROJECT>/3D_Brain_partsLDM,NPROC_PER_NODE=8,CONFIG=configs/whole_brain_aux_taux_spacing1p5_CONTEXT.json,MASTER_PORT=29620,MAX_RESTARTS=20,MAX_REQUEUE=10 \
+  train_ldm_aux_taux_context_ddp.slurm)
+```
+</details>
+
+
+## Ablation 4: No shared AEs across hemispheres
+<details>
+<summary><strong>Details</strong></summary>
+
+#### *Estimated* runtime: ~40 * 2 + 160 GPU hours on H100
+
+- The actual runtime of this experiment has not been tested.
+- Each hemi model takes < 100 hrs run time, followed by the fusion model.
+- The following cmd runs all three steps consecutively (concurrently step 1, 2, followed by step 3).
+
+
+### Download ckpts:
+#### lhemi ldm
+`https://huggingface.co/nnuochen/3D_Brain_partsLDM/tree/main/lhemi_UNET_spacing1p5_ddp`
+#### rhemi ldm
+`https://huggingface.co/nnuochen/3D_Brain_partsLDM/tree/main/rhemi_UNET_spacing1p5_ddp`
+
+</details>
+
 # Inference
 
-## Ours
+## Ours (T1) ✅
 
 ```bash
 python scripts/infer_3d_brain_ldm_aux_taux.py   --config configs/infer/infer_whole_brain_aux_taux_spacing1p5.json   --erode_r 2
+```
+## Ours (T3) / This is for ablations
+
+```bash
+python scripts/infer_3d_brain_ldm_aux_taux.py   --config configs/infer/infer_whole_brain_aux_taux_spacing1p5_T3.json   --erode_r 2
+```
+
+## Ours (T5) ✅ / This is for ablations
+
+```bash
+python scripts/infer_3d_brain_ldm_aux_taux.py   --config configs/infer/infer_whole_brain_aux_taux_spacing1p5_T5.json   --erode_r 2
+```
+
+## Ours (T10) / This is for ablations
+
+```bash
+python scripts/infer_3d_brain_ldm_aux_taux.py   --config configs/infer/infer_whole_brain_aux_taux_spacing1p5_T10.json   --erode_r 2
 ```
 
 ## Ablation: No Aux ✅
