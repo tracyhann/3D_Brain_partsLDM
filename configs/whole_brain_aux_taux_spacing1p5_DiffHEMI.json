@@ -23,9 +23,9 @@
   "resume_ckpt": "",
 
   "lhemi_ae_ckpt": "ckpts/AE/lhemi_AE_spacing1p5/AE_best.pt",
-  "lhemi_unet_ckpt": "ckpts/UNET/lhemi_UNET_spacing1p5/UNET_last.pt",
+  "lhemi_unet_ckpt": "ckpts/UNET/lhemi_UNET_spacing1p5_ddp/UNET_step000040000.pt",
   "rhemi_ae_ckpt": "ckpts/AE/rhemi_AE_spacing1p5/AE_best.pt",
-  "rhemi_unet_ckpt": "ckpts/UNET/rhemi_UNET_spacing1p5/UNET_last.pt",
+  "rhemi_unet_ckpt": "ckpts/UNET/rhemi_UNET_spacing1p5_ddp/UNET_step000040000.pt",
 
   "sub_ae_ckpt": "ckpts/AE/sub_AE_second_spacing1p5/AE_best.pt",
   "sub_unet_ckpt": "ckpts/UNET/sub_UNET_spacing1p5/UNET_last.pt",
@@ -55,9 +55,9 @@
 
   "max_steps": 20000,
   "ldm_lr": 0.0001,
-  "lambda_aux": 0.5,
+  "lambda_aux": 1.0,
   "lambda_seam": 0.1,
-  "aux_every": 1,
+  "aux_every": 4,
   "taux_min": 100,
   "taux_max": 300,
   "part_taux_max": 200,
