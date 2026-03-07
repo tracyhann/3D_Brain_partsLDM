@@ -146,7 +146,7 @@ sbatch -N 12 --ntasks-per-node=1 --gpus-per-node=8 \
 </details>
 
 # Baselines
-## Baseline 3: Segmentation-mask-guided LDM (Med-DDPM style)
+## Baseline 3: Segmentation-mask-guided LDM (Med-DDPM style) ✅
 <details>
 <summary><strong>Details</strong></summary>
 
