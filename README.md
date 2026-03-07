@@ -224,7 +224,7 @@ echo "step2=${job2} (afterok:${job1})"
 </details>
 
 
-## Ablation 3: No Aux
+## Ablation 3: No Aux ✅
 <details>
 <summary><strong>Details</strong></summary>
 
@@ -261,17 +261,15 @@ sbatch -N 12 --ntasks-per-node=1 --gpus-per-node=8 \
 - The following cmd runs all three steps consecutively (concurrently step 1, 2, followed by step 3).
 
 
-### Full job (3 steps):
-#### Launch 96-GPU DDP Training (12 nodes × 8 GPUs)
+### Download ckpts:
+#### lhemi ldm
+`https://huggingface.co/nnuochen/3D_Brain_partsLDM/tree/main/lhemi_UNET_spacing1p5_ddp`
+#### rhemi ldm
+`https://huggingface.co/nnuochen/3D_Brain_partsLDM/tree/main/rhemi_UNET_spacing1p5_ddp`
 
-```bash
-cd <PATH_TO_PROJECT>/3D_Brain_partsLDM
-NODES=12 GPUS_PER_NODE=8 NPROC_PER_NODE=8 MAX_RESTARTS=20 MAX_REQUEUE=10 ./submit_diffhemi_pipeline.sh
-```
+### Three jobs:
 
-### To run jobs independently:
-
-#### lhemi
+#### lhemi ✅
 ```bash
 cd <PATH_TO_PROJECT>/3D_Brain_partsLDM
 sbatch -N 12 --ntasks-per-node=1 --gpus-per-node=8 \
@@ -286,7 +284,7 @@ sbatch -N 12 --ntasks-per-node=1 --gpus-per-node=8 \
 ```
 
 
-#### rhemi
+#### rhemi ✅
 ```bash
 cd <PATH_TO_PROJECT>/3D_Brain_partsLDM
 sbatch -N 12 --ntasks-per-node=1 --gpus-per-node=8 \
