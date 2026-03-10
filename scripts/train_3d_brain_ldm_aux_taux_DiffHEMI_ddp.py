@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import os
 import random
 import sys
@@ -44,6 +45,12 @@ def parse_bool(val: Any) -> bool:
     if isinstance(val, bool):
         return val
     return str(val).strip().lower() in {"1", "true", "yes", "y", "t"}
+
+
+def compute_effective_max_steps(max_steps: int, world_size: int, scale_with_world_size: bool) -> int:
+    if not scale_with_world_size:
+        return int(max_steps)
+    return max(1, int(math.ceil(float(max_steps) / max(1, int(world_size)))))
 
 
 def setup_ddp() -> Tuple[int, int, int]:
@@ -1058,6 +1065,11 @@ def main():
 
     # Aux-tAux training controls
     ap.add_argument("--max_steps", type=int, default=120_000)
+    ap.add_argument(
+        "--scale_max_steps_by_world_size",
+        default=True,
+        help="If true, use effective_max_steps=ceil(max_steps/world_size) so sample budget stays stable across GPU counts.",
+    )
     ap.add_argument("--ldm_lr", type=float, default=1e-4)
     ap.add_argument("--lambda_aux", type=float, default=1.0)
     ap.add_argument(
@@ -1395,6 +1407,18 @@ def main():
             find_unused_parameters=True,
         )
 
+        scale_max_steps = parse_bool(args.scale_max_steps_by_world_size)
+        effective_max_steps = compute_effective_max_steps(
+            max_steps=int(args.max_steps),
+            world_size=world_size,
+            scale_with_world_size=scale_max_steps,
+        )
+        if rank == 0:
+            print(
+                f"[steps] max_steps_config={int(args.max_steps)} world_size={world_size} "
+                f"effective_max_steps={effective_max_steps} scale_by_world_size={scale_max_steps}"
+            )
+
         train_ldm_aux_taux_ddp(
             ddp_whole_unet=ddp_whole_unet,
             whole_ae=whole_ae,
@@ -1410,7 +1434,7 @@ def main():
             mask_ctx=mask_ctx,
             hemi_shape=hemi_size,
             sub_shape=sub_size,
-            max_steps=int(args.max_steps),
+            max_steps=effective_max_steps,
             lr=float(args.ldm_lr),
             whole_scale_factor=whole_sf,
             lhemi_scale_factor=lhemi_sf,
